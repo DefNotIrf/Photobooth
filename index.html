@@ -114,7 +114,24 @@ nav {
 .feature-title { font-family:'Lora',serif; font-weight:700; font-size:1.2rem; color:var(--text); margin-bottom:10px; letter-spacing:-0.02em; }
 .feature-desc { font-family:'Source Code Pro',monospace; font-size:0.68rem; letter-spacing:0.04em; line-height:1.7; color:var(--text3); }
 
-/* PRICING */
+/* GALLERY */
+.gallery-section { background:var(--bg); overflow:hidden; }
+.gallery-grid {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:16px;
+}
+.gallery-item {
+  border-radius:12px; overflow:hidden;
+  border:1px solid var(--border);
+  transition:transform 0.2s, border-color 0.2s;
+  aspect-ratio:3/4; background:var(--surface);
+}
+.gallery-item img {
+  width:100%; height:100%; object-fit:cover; display:block;
+  transition:transform 0.3s;
+}
+.gallery-item:hover { border-color:var(--orange); transform:translateY(-4px); }
+.gallery-item:hover img { transform:scale(1.03); }
+@media(max-width:768px){ .gallery-grid { grid-template-columns:1fr 1fr; gap:10px; } }
 .pricing-section { background:var(--surface); }
 .pricing-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
 .price-card {
@@ -233,6 +250,7 @@ footer { border-top:1px solid var(--border); padding:40px 48px; display:flex; al
     <span class="nav-logo-text">KepalaKotak</span>
   </a>
   <ul class="nav-links">
+    <li><a href="#gallery">Gallery</a></li>
     <li><a href="#pricing">Pricing</a></li>
     <li><a href="#how">How it works</a></li>
     <li><a href="#contact">Contact</a></li>
@@ -279,6 +297,24 @@ footer { border-top:1px solid var(--border); padding:40px 48px; display:flex; al
         <span class="feature-icon">✨</span>
         <div class="feature-title">Custom designs</div>
         <div class="feature-desc">9 live filters, custom border colours, captions, emojis — or pick an event design template.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GALLERY -->
+<section class="section gallery-section" id="gallery">
+  <div class="section-inner">
+    <div class="section-label">From our shoots</div>
+    <div class="gallery-grid">
+      <div class="gallery-item">
+        <img src="/sample1.png" alt="Polaroid sample — KepalaKotak Photobooth">
+      </div>
+      <div class="gallery-item">
+        <img src="/sample2.png" alt="Photo strip sample — KepalaKotak Photobooth">
+      </div>
+      <div class="gallery-item">
+        <img src="/sample3.png" alt="Photo strip sample — KepalaKotak Photobooth">
       </div>
     </div>
   </div>
