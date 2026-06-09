@@ -1,0 +1,5 @@
+node_modules/
+captures/
+*.pem
+queue.json
+designs/*.png

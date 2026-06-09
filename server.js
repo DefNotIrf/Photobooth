@@ -17,13 +17,15 @@ const multer    = require('multer');
 // ─────────────────────────────────────────────
 // CONFIG
 // ─────────────────────────────────────────────
+const IS_CLOUD = !process.env.LOCAL_MODE; // set LOCAL_MODE=1 on your laptop
+
 const CONFIG = {
-  port: 3000,
-  mockMode: false,
-  adminPassword: 'admin321',
+  port: process.env.PORT || 3000,
+  mockMode: IS_CLOUD ? true : false,  // always mock on cloud (no hardware)
+  adminPassword: process.env.ADMIN_PASSWORD || 'admin321',
   digicam:     'C:\\Program Files (x86)\\digiCamControl\\CameraControlCmd.exe',
-  watchDir:    'Z:',  // mapped network share: net use Z: \\172.20.10.14\STUFF
-  captureDir:  'C:\\Users\\User\\Desktop\\Techno\\captures',        // temp for print files
+  watchDir:    process.env.WATCH_DIR || 'Z:',
+  captureDir:  process.env.CAPTURE_DIR || path.join(__dirname, 'captures'),
   printerName: 'Canon SELPHY CP1300 WS',
   appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwYW3Z1qxjqXYjaQCeYxcUBaMsm07ZbgPibkhbWwfXtZD6DZDlX6ty5uMdgRKnxwNt3ZQ/exec',
   queueFile:   path.join(__dirname, 'queue.json'),
@@ -36,7 +38,8 @@ const CONFIG = {
 const certFile = path.join(__dirname, 'cert.pem');
 const keyFile  = path.join(__dirname, 'key.pem');
 let sslOptions = null;
-if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
+// Only use SSL in local mode — Render handles HTTPS termination
+if (!IS_CLOUD && fs.existsSync(certFile) && fs.existsSync(keyFile)) {
   sslOptions = { cert: fs.readFileSync(certFile), key: fs.readFileSync(keyFile) };
   console.log('[SSL] Certificate loaded — running HTTPS');
 }
@@ -399,6 +402,10 @@ function adminAuth(req, res, next) {
 // ROUTES
 // ─────────────────────────────────────────────
 app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/photobooth', (req, res) => {
   let html = fs.readFileSync(path.join(__dirname, 'photobooth-v3.html'), 'utf8');
   const designs = loadDesigns();
   if (designs.length > 0) {

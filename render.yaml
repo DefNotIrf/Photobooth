@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: kepalakotak-photobooth
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: ADMIN_PASSWORD
+        value: admin321
