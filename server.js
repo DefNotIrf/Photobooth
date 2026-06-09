@@ -27,7 +27,7 @@ const CONFIG = {
   watchDir:    process.env.WATCH_DIR || 'Z:',
   captureDir:  process.env.CAPTURE_DIR || path.join(__dirname, 'captures'),
   printerName: 'Canon SELPHY CP1300 WS',
-  appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwYW3Z1qxjqXYjaQCeYxcUBaMsm07ZbgPibkhbWwfXtZD6DZDlX6ty5uMdgRKnxwNt3ZQ/exec',
+  appsScriptUrl: process.env.APPS_SCRIPT_URL || '',
   queueFile:   path.join(__dirname, 'queue.json'),
   designFile:  path.join(__dirname, 'custom-design.png'),
 };
@@ -407,6 +407,10 @@ app.get('/', (req, res) => {
 
 app.get('/photobooth', (req, res) => {
   let html = fs.readFileSync(path.join(__dirname, 'photobooth-v3.html'), 'utf8');
+  // Always inject Apps Script URL
+  html = html.replace('</head>',
+    `<script>window.INJECTED_APPS_SCRIPT_URL=${JSON.stringify(CONFIG.appsScriptUrl||'')};</script></head>`
+  );
   const designs = loadDesigns();
   if (designs.length > 0) {
     const designData = {};
@@ -423,6 +427,7 @@ app.get('/photobooth', (req, res) => {
       'window.INJECTED_DESIGN_FORMAT = ' + JSON.stringify((first && first.format) || 'strip') + ';\n' +
       'window.INJECTED_DESIGN_ID = ' + JSON.stringify((first && first.id) || '') + ';\n' +
       'window.INJECTED_DESIGN_NAME = ' + JSON.stringify((first && first.name) || '') + ';\n' +
+      'window.INJECTED_APPS_SCRIPT_URL = ' + JSON.stringify(CONFIG.appsScriptUrl || '') + ';\n' +
       '</script>';
     html = html.replace('</head>', injection + '</head>');
     console.log('[SERVER] Injected ' + designs.length + ' design(s):', meta.map(d => d.id + '(' + d.format + ')').join(', '));

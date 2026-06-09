@@ -2370,7 +2370,7 @@ function setDriveBadge(html) {
 }
 
 // Apps Script URL — browser uploads directly, bypassing server network
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwYW3Z1qxjqXYjaQCeYxcUBaMsm07ZbgPibkhbWwfXtZD6DZDlX6ty5uMdgRKnxwNt3ZQ/exec';
+const APPS_SCRIPT_URL = window.INJECTED_APPS_SCRIPT_URL || '';
 
 async function uploadToGDriveBrowser(imageB64, filename, sessionId) {
   const res = await fetch(APPS_SCRIPT_URL, {
