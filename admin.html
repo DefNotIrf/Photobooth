@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KepalaKotak Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Source+Code+Pro:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #1c1c1a;
+  --surface: #242422;
+  --surface2:#2e2e2b;
+  --surface3:#383835;
+  --border:  #3a3a37;
+  --border2: #4a4a46;
+  --text:    #f0ede3;
+  --text2:   #c8c5bb;
+  --text3:   #7a7870;
+  --orange:  #e8845e;
+  --green:   #8fa870;
+  --blue:    #7aaee0;
+  --red:     #e07060;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Lora',Georgia,serif;-webkit-font-smoothing:antialiased;}
+
+/* ── LOGIN ── */
+#loginScreen {
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:20px;
+}
+.login-card {
+  background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:40px 36px;width:100%;max-width:380px;text-align:center;
+}
+.login-logo {font-size:2.4rem;margin-bottom:8px;}
+.login-title {font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:4px;}
+.login-sub {font-family:'Source Code Pro',monospace;font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--text3);margin-bottom:28px;}
+.login-input {
+  width:100%;padding:14px 16px;
+  background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;
+  color:var(--text);font-family:'Lora',serif;font-size:1rem;outline:none;
+  transition:border-color 0.2s;margin-bottom:14px;
+}
+.login-input:focus{border-color:var(--orange);}
+.login-btn {
+  width:100%;padding:15px;background:var(--orange);color:#fff;border:none;
+  border-radius:10px;font-family:'Source Code Pro',monospace;font-size:0.8rem;
+  letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:background 0.2s;
+}
+.login-btn:hover{background:#d97757;}
+.login-err {color:var(--red);font-family:'Source Code Pro',monospace;font-size:0.7rem;margin-top:10px;min-height:1.2em;}
+
+/* ── MAIN APP ── */
+#adminApp {display:none;min-height:100vh;flex-direction:column;}
+#adminApp.active{display:flex;}
+
+.topbar {
+  background:var(--bg);border-bottom:1px solid var(--border);
+  padding:0 28px;height:60px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:50;flex-shrink:0;
+}
+.tb-brand{display:flex;align-items:center;gap:10px;}
+.tb-brand svg{width:22px;height:22px;}
+.tb-brand-text{font-weight:700;font-size:1rem;letter-spacing:-0.02em;}
+.tb-badge{
+  font-family:'Source Code Pro',monospace;font-size:0.6rem;letter-spacing:0.1em;
+  text-transform:uppercase;background:var(--surface2);border:1px solid var(--border);
+  padding:4px 10px;border-radius:100px;color:var(--text3);
+}
+.tb-right{display:flex;align-items:center;gap:12px;}
+.logout-btn{
+  padding:8px 16px;background:transparent;border:1px solid var(--border);
+  border-radius:8px;color:var(--text3);font-family:'Source Code Pro',monospace;
+  font-size:0.62rem;letter-spacing:0.08em;cursor:pointer;transition:all 0.15s;
+}
+.logout-btn:hover{border-color:var(--red);color:var(--red);}
+
+/* ── LAYOUT ── */
+.admin-body{flex:1;padding:28px;display:grid;grid-template-columns:1fr 360px;gap:24px;max-width:1300px;width:100%;margin:0 auto;}
+@media(max-width:900px){.admin-body{grid-template-columns:1fr;}}
+
+/* ── CARDS ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+.card-header{
+  padding:16px 20px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.card-title{font-weight:700;font-size:0.95rem;letter-spacing:-0.01em;}
+.card-sub{font-family:'Source Code Pro',monospace;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);}
+.card-body{padding:20px;}
+
+/* ── STATUS PILLS ── */
+.status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:0;}
+.stat-box{
+  background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:14px 16px;text-align:center;
+}
+.stat-num{font-size:1.8rem;font-weight:700;letter-spacing:-0.03em;color:var(--orange);}
+.stat-label{font-family:'Source Code Pro',monospace;font-size:0.58rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-top:2px;}
+.status-indicator{display:flex;align-items:center;gap:6px;}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--text3);}
+.dot.green{background:var(--green);}
+.dot.orange{background:var(--orange);}
+.dot.red{background:var(--red);}
+
+/* ── QUEUE ── */
+.queue-controls{display:flex;gap:8px;flex-wrap:wrap;}
+.btn-sm{
+  padding:8px 14px;border-radius:8px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--text2);cursor:pointer;
+  font-family:'Source Code Pro',monospace;font-size:0.62rem;
+  letter-spacing:0.08em;text-transform:uppercase;transition:all 0.15s;
+}
+.btn-sm:hover{border-color:var(--orange);color:var(--orange);}
+.btn-sm.danger:hover{border-color:var(--red);color:var(--red);}
+.btn-sm.primary{background:var(--orange);border-color:var(--orange);color:#fff;}
+.btn-sm.primary:hover{background:#d97757;}
+
+#queueList{margin-top:16px;display:flex;flex-direction:column;gap:8px;max-height:500px;overflow-y:auto;}
+#queueList::-webkit-scrollbar{width:4px;}
+#queueList::-webkit-scrollbar-track{background:transparent;}
+#queueList::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+
+.queue-item{
+  background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:14px 16px;display:flex;align-items:center;gap:12px;
+  transition:border-color 0.2s;
+}
+.queue-item.waiting{border-left:3px solid var(--orange);}
+.queue-item.printing{border-left:3px solid var(--blue);}
+.queue-item.done{border-left:3px solid var(--border2);opacity:0.5;}
+
+.q-num{
+  font-size:1.4rem;font-weight:700;color:var(--orange);
+  min-width:48px;text-align:center;letter-spacing:-0.02em;
+}
+.q-info{flex:1;}
+.q-format{font-family:'Source Code Pro',monospace;font-size:0.64rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text2);}
+.q-time{font-family:'Source Code Pro',monospace;font-size:0.58rem;color:var(--text3);margin-top:2px;}
+.q-status{
+  font-family:'Source Code Pro',monospace;font-size:0.58rem;letter-spacing:0.08em;
+  text-transform:uppercase;padding:4px 10px;border-radius:100px;
+}
+.q-status.waiting{background:rgba(232,132,94,0.15);color:var(--orange);}
+.q-status.printing{background:rgba(122,174,224,0.15);color:var(--blue);}
+.q-status.done{background:rgba(143,168,112,0.15);color:var(--green);}
+.q-actions{display:flex;gap:6px;}
+.q-btn{
+  padding:6px 12px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--text3);cursor:pointer;
+  font-family:'Source Code Pro',monospace;font-size:0.58rem;
+  letter-spacing:0.06em;text-transform:uppercase;transition:all 0.15s;
+}
+.q-btn:hover{border-color:var(--orange);color:var(--orange);}
+.q-btn.done-btn:hover{border-color:var(--green);color:var(--green);}
+
+.empty-queue{
+  text-align:center;padding:40px 20px;
+  font-family:'Source Code Pro',monospace;font-size:0.7rem;
+  letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);
+}
+
+/* ── DESIGN UPLOAD ── */
+.upload-zone{
+  border:2px dashed var(--border2);border-radius:12px;padding:32px 20px;
+  text-align:center;cursor:pointer;transition:all 0.2s;position:relative;
+}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--orange);background:rgba(232,132,94,0.04);}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.upload-icon{font-size:2.4rem;margin-bottom:10px;}
+.upload-title{font-size:0.95rem;font-weight:600;margin-bottom:4px;}
+.upload-hint{font-family:'Source Code Pro',monospace;font-size:0.6rem;letter-spacing:0.08em;color:var(--text3);}
+
+#designPreview{
+  margin-top:16px;display:none;
+  border:1px solid var(--border);border-radius:10px;overflow:hidden;
+}
+#designPreview img{width:100%;display:block;}
+.design-meta{
+  padding:10px 14px;background:var(--surface2);
+  font-family:'Source Code Pro',monospace;font-size:0.62rem;
+  letter-spacing:0.06em;color:var(--text3);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.design-status{display:flex;align-items:center;gap:6px;}
+
+.progress-wrap{height:4px;background:var(--border);border-radius:100px;overflow:hidden;margin-top:12px;display:none;}
+.progress-fill{height:100%;background:var(--orange);width:0%;transition:width 0.3s;}
+
+.upload-result{
+  margin-top:12px;font-family:'Source Code Pro',monospace;font-size:0.65rem;
+  letter-spacing:0.06em;text-align:center;min-height:1.4em;
+}
+.upload-result.success{color:var(--green);}
+.upload-result.error{color:var(--red);}
+
+.fmt-btn {
+  padding:10px 16px; border-radius:10px;
+  border:1.5px solid var(--border); background:var(--surface2);
+  color:var(--text2); cursor:pointer;
+  font-family:'Source Code Pro',monospace; font-size:0.68rem;
+  letter-spacing:0.06em; transition:all 0.15s;
+}
+.fmt-btn:hover { border-color:var(--orange); color:var(--orange); }
+.fmt-btn.selected { border-color:var(--orange); background:rgba(232,132,94,0.1); color:var(--orange); }
+
+.slot-row {
+  display:flex; align-items:center; gap:10px;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:10px; padding:10px 14px;
+}
+.slot-thumb { width:36px; height:52px; object-fit:cover; border-radius:4px; border:1px solid var(--border2); }
+.slot-info { flex:1; }
+.slot-name { font-family:'Source Code Pro',monospace; font-size:0.65rem; letter-spacing:0.08em; color:var(--text2); }
+.slot-fmt  { font-family:'Source Code Pro',monospace; font-size:0.58rem; color:var(--text3); margin-top:2px; }
+.slot-actions { display:flex; gap:6px; }
+
+.design-badge {
+  font-family:'Source Code Pro',monospace; font-size:0.58rem; letter-spacing:0.08em;
+  text-transform:uppercase; padding:3px 8px; border-radius:100px;
+  background:rgba(143,168,112,0.15); color:var(--green);
+}
+
+/* ── SETTINGS ── */
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);}
+.setting-row:last-child{border-bottom:none;}
+.setting-label{font-family:'Source Code Pro',monospace;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text2);}
+.setting-val{font-family:'Source Code Pro',monospace;font-size:0.65rem;color:var(--text3);}
+.setting-val.active{color:var(--green);}
+.setting-val.inactive{color:var(--red);}
+
+/* ── LIVE INDICATOR ── */
+.live-badge{
+  display:flex;align-items:center;gap:6px;
+  font-family:'Source Code Pro',monospace;font-size:0.6rem;
+  letter-spacing:0.1em;text-transform:uppercase;color:var(--green);
+}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">⚙️</div>
+    <div class="login-title">Admin Panel</div>
+    <div class="login-sub">KepalaKotak Photobooth</div>
+    <input class="login-input" type="password" id="passwordInput" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">Login</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ══ ADMIN APP ══ -->
+<div id="adminApp">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="tb-brand">
+      <svg viewBox="0 0 100 100" fill="none">
+        <path d="M50 10L53.5 43L82 22L62 47L94 50L62 53L82 78L53.5 57L50 90L46.5 57L18 78L38 53L6 50L38 47L18 22L46.5 43Z" fill="#e8845e"/>
+      </svg>
+      <span class="tb-brand-text">KepalaKotak</span>
+      <span class="tb-badge">Admin</span>
+    </div>
+    <div class="tb-right">
+      <div class="live-badge" id="wsIndicator">
+        <div class="live-dot"></div> Live
+      </div>
+      <button class="logout-btn" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="admin-body">
+
+    <!-- LEFT: Queue -->
+    <div>
+
+      <!-- Status stats -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Today's Stats</div>
+            <div class="card-sub">Live · updates in real time</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="status-grid">
+            <div class="stat-box">
+              <div class="stat-num" id="statWaiting">0</div>
+              <div class="stat-label">Waiting</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num" id="statPrinting" style="color:var(--blue)">0</div>
+              <div class="stat-label">Printing</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num" id="statTotal" style="color:var(--green)">0</div>
+              <div class="stat-label">Total Served</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Queue -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Print Queue</div>
+            <div class="card-sub">Tap a job to mark as done</div>
+          </div>
+          <div class="queue-controls">
+            <button class="btn-sm" onclick="refreshQueue()">↻ Refresh</button>
+            <button class="btn-sm danger" onclick="clearDone()">Clear done</button>
+            <button class="btn-sm danger" onclick="clearAll()">Clear all</button>
+          </div>
+        </div>
+        <div class="card-body" style="padding:16px 20px;">
+          <div id="queueList">
+            <div class="empty-queue">No active jobs</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Design + Settings -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Design Upload -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Design Manager</div>
+            <div class="card-sub">Upload PNG overlay templates</div>
+          </div>
+        </div>
+        <div class="card-body">
+
+          <!-- Step 1: Choose format -->
+          <div class="upload-step" id="ustep1">
+            <div class="custom-label">Which format?</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+              <button class="fmt-btn" onclick="selectFormat('strip')"    id="fmtbtn-strip">📷 Photo Strip</button>
+              <button class="fmt-btn" onclick="selectFormat('polaroid')" id="fmtbtn-polaroid">🖼 Polaroid</button>
+            </div>
+          </div>
+
+          <!-- Step 2: Replace or Add -->
+          <div class="upload-step" id="ustep2" style="display:none;">
+            <div class="custom-label">Replace or add?</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+              <button class="fmt-btn" onclick="selectAction('replace')" id="actbtn-replace">♻️ Replace existing</button>
+              <button class="fmt-btn" onclick="selectAction('add')"     id="actbtn-add">➕ Add new slot</button>
+            </div>
+
+            <!-- Replace: pick which slot -->
+            <div id="replaceSlots" style="display:none;margin-top:12px;">
+              <div class="custom-label">Replace which design?</div>
+              <div id="slotList" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+          </div>
+
+          <!-- Step 3: Upload -->
+          <div class="upload-step" id="ustep3" style="display:none;">
+            <div class="custom-label" id="uploadStepLabel">Upload design PNG</div>
+            <div style="margin-bottom:12px;">
+              <input type="text" id="designNameInput" placeholder="Design name (e.g. Selamat Hari Raya)"
+                style="width:100%;padding:11px 14px;background:var(--surface2);border:1.5px solid var(--border);
+                border-radius:10px;color:var(--text);font-family:'Lora',serif;font-size:0.9rem;outline:none;
+                transition:border-color 0.2s;"
+                onfocus="this.style.borderColor='var(--orange)'" onblur="this.style.borderColor='var(--border)'">
+            </div>
+            <div class="upload-zone" id="uploadZone">
+              <input type="file" id="designFile" accept="image/png" onchange="handleFileSelect(this)">
+              <div class="upload-icon">🎨</div>
+              <div class="upload-title">Drop your PNG here</div>
+              <div class="upload-hint">PNG only · max 10MB · transparent holes where photos go</div>
+            </div>
+            <div class="progress-wrap" id="uploadProgress">
+              <div class="progress-fill" id="uploadFill"></div>
+            </div>
+            <div class="upload-result" id="uploadResult"></div>
+            <button class="btn-sm" onclick="resetUploadFlow()" style="margin-top:10px;">← Start over</button>
+          </div>
+
+          <!-- Current designs per format -->
+          <div style="margin-top:20px;" id="allDesignsWrap">
+            <div class="custom-label">Active designs</div>
+            <div id="allDesignsList" style="display:flex;flex-direction:column;gap:10px;"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Server Settings -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Server Status</div>
+        </div>
+        <div class="card-body" style="padding:0 20px;">
+          <div class="setting-row">
+            <span class="setting-label">Mode</span>
+            <span class="setting-val" id="settingMode">—</span>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Printer</span>
+            <span class="setting-val" id="settingPrinter">—</span>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Google Drive</span>
+            <span class="setting-val" id="settingDrive">—</span>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Custom Design</span>
+            <span class="setting-val" id="settingDesign">—</span>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Total Served</span>
+            <span class="setting-val" id="settingTotal">—</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────────
+let TOKEN = sessionStorage.getItem('admin_token') || '';
+
+async function doLogin() {
+  const pw = document.getElementById('passwordInput').value;
+  const err = document.getElementById('loginErr');
+  try {
+    const res  = await fetch('/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      TOKEN = data.token;
+      sessionStorage.setItem('admin_token', TOKEN);
+      showApp();
+    } else {
+      err.textContent = 'Wrong password';
+    }
+  } catch(e) {
+    err.textContent = 'Cannot reach server';
+  }
+}
+
+function doLogout() {
+  TOKEN = '';
+  sessionStorage.removeItem('admin_token');
+  document.getElementById('adminApp').classList.remove('active');
+  document.getElementById('loginScreen').style.display = 'flex';
+  if (wsConn) wsConn.close();
+}
+
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'x-admin-token': TOKEN };
+}
+
+// ─────────────────────────────────────────────
+// APP INIT
+// ─────────────────────────────────────────────
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('adminApp').classList.add('active');
+  connectWS();
+  loadStatus();
+  loadAllDesigns();
+  refreshQueue();
+}
+
+// Auto-login if token exists
+window.addEventListener('load', () => {
+  if (TOKEN) showApp();
+  document.getElementById('passwordInput').focus();
+});
+
+// ─────────────────────────────────────────────
+// WEBSOCKET
+// ─────────────────────────────────────────────
+let wsConn = null;
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  wsConn = new WebSocket(`${proto}://${location.host}`);
+
+  wsConn.onopen = () => {
+    document.getElementById('wsIndicator').style.color = 'var(--green)';
+  };
+
+  wsConn.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'queue') renderQueue(msg.queue, msg.counter);
+    if (msg.type === 'design_updated') { loadCurrentDesign(); loadStatus(); }
+  };
+
+  wsConn.onclose = () => {
+    document.getElementById('wsIndicator').style.color = 'var(--red)';
+    setTimeout(connectWS, 3000);
+  };
+}
+
+// ─────────────────────────────────────────────
+// QUEUE
+// ─────────────────────────────────────────────
+let allQueue = [];
+
+async function refreshQueue() {
+  try {
+    const res  = await fetch('/admin/queue', { headers: authHeaders() });
+    const data = await res.json();
+    renderQueue(data.queue, data.counter);
+  } catch(e) {}
+}
+
+function renderQueue(queue, counter) {
+  allQueue = queue || [];
+  const list = document.getElementById('queueList');
+
+  const waiting  = allQueue.filter(q => q.status === 'waiting').length;
+  const printing = allQueue.filter(q => q.status === 'printing').length;
+
+  document.getElementById('statWaiting').textContent  = waiting;
+  document.getElementById('statPrinting').textContent = printing;
+  document.getElementById('statTotal').textContent    = counter || 0;
+
+  // Show all non-done, plus last 5 done
+  const active = allQueue.filter(q => q.status !== 'done');
+  const done   = allQueue.filter(q => q.status === 'done').slice(-5);
+  const items  = [...active, ...done].sort((a,b) => b.number - a.number);
+
+  if (!items.length) {
+    list.innerHTML = '<div class="empty-queue">No jobs yet</div>';
+    return;
+  }
+
+  list.innerHTML = items.map(item => `
+    <div class="queue-item ${item.status}" id="qi-${item.number}">
+      <div class="q-num">#${item.number}</div>
+      <div class="q-info">
+        <div class="q-format">${formatLabel(item.format)} · ${item.outputMode === 'both' ? 'Print + Digital' : 'Print only'}</div>
+        <div class="q-time">${timeAgo(item.createdAt)}</div>
+      </div>
+      <span class="q-status ${item.status}">${item.status}</span>
+      <div class="q-actions">
+        ${item.status === 'waiting'  ? `<button class="q-btn" onclick="setStatus(${item.number},'printing')">▶ Print</button>` : ''}
+        ${item.status === 'printing' ? `<button class="q-btn done-btn" onclick="setStatus(${item.number},'done')">✓ Done</button>` : ''}
+        ${item.status === 'waiting'  ? `<button class="q-btn done-btn" onclick="setStatus(${item.number},'done')">✓ Done</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function setStatus(number, status) {
+  await fetch(`/admin/queue/${number}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify({ status }),
+  });
+  refreshQueue();
+}
+
+async function clearDone() {
+  if (!confirm('Remove all done items from queue?')) return;
+  await fetch('/admin/queue/done', { method: 'DELETE', headers: authHeaders() });
+  refreshQueue();
+}
+
+async function clearAll() {
+  if (!confirm('Clear the ENTIRE queue? This cannot be undone.')) return;
+  await fetch('/admin/queue/all', { method: 'DELETE', headers: authHeaders() });
+  refreshQueue();
+}
+
+function formatLabel(f) {
+  return { strip: '📷 Photo Strip', polaroid: '🖼 Polaroid' }[f] || f;
+}
+
+function timeAgo(iso) {
+  const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  return `${Math.floor(diff/3600)}h ago`;
+}
+
+// ─────────────────────────────────────────────
+// SERVER STATUS
+// ─────────────────────────────────────────────
+async function loadStatus() {
+  try {
+    const res  = await fetch('/admin/status', { headers: authHeaders() });
+    const data = await res.json();
+    document.getElementById('settingMode').textContent    = data.mockMode ? '⚡ Mock' : '🔴 Live';
+    document.getElementById('settingMode').className      = 'setting-val ' + (data.mockMode ? 'inactive' : 'active');
+    document.getElementById('settingPrinter').textContent = data.printer || '—';
+    document.getElementById('settingDrive').textContent   = data.driveEnabled ? '✓ Connected' : '✗ Not configured';
+    document.getElementById('settingDrive').className     = 'setting-val ' + (data.driveEnabled ? 'active' : 'inactive');
+    document.getElementById('settingDesign').textContent  = data.hasDesign ? '✓ Uploaded' : '✗ None (using built-in)';
+    document.getElementById('settingDesign').className    = 'setting-val ' + (data.hasDesign ? 'active' : 'inactive');
+    document.getElementById('settingTotal').textContent   = data.totalServed;
+  } catch(e) {}
+}
+
+// ─────────────────────────────────────────────
+// DESIGN UPLOAD FLOW
+// ─────────────────────────────────────────────
+let uploadState = { format: null, action: null, replaceSlot: null };
+
+function selectFormat(fmt) {
+  uploadState.format = fmt;
+  uploadState.action = null;
+  uploadState.replaceSlot = null;
+
+  document.querySelectorAll('.fmt-btn[id^="fmtbtn"]').forEach(b => b.classList.remove('selected'));
+  document.getElementById('fmtbtn-' + fmt)?.classList.add('selected');
+
+  document.getElementById('ustep2').style.display = '';
+  document.getElementById('ustep3').style.display = 'none';
+  document.getElementById('replaceSlots').style.display = 'none';
+  document.querySelectorAll('.fmt-btn[id^="actbtn"]').forEach(b => b.classList.remove('selected'));
+}
+
+async function selectAction(action) {
+  uploadState.action = action;
+  document.querySelectorAll('.fmt-btn[id^="actbtn"]').forEach(b => b.classList.remove('selected'));
+  document.getElementById('actbtn-' + action)?.classList.add('selected');
+
+  if (action === 'replace') {
+    // Load existing slots for this format
+    document.getElementById('replaceSlots').style.display = '';
+    await loadSlotsForFormat(uploadState.format);
+  } else {
+    // Add new — go straight to upload
+    document.getElementById('replaceSlots').style.display = 'none';
+    uploadState.replaceSlot = null;
+    showUploadStep();
+  }
+}
+
+async function loadSlotsForFormat(fmt) {
+  const list = document.getElementById('slotList');
+  list.innerHTML = '<div style="font-family:monospace;font-size:0.65rem;color:var(--text3);">Loading…</div>';
+  try {
+    const res  = await fetch('/admin/designs', { headers: authHeaders() });
+    const data = await res.json();
+    const slots = (data.designs || []).filter(d => d.format === fmt);
+    if (!slots.length) {
+      list.innerHTML = '<div style="font-family:monospace;font-size:0.65rem;color:var(--text3);">No designs for this format yet. Use "Add new" instead.</div>';
+      return;
+    }
+    list.innerHTML = slots.map(s => `
+      <div class="slot-row" style="cursor:pointer;${uploadState.replaceSlot===s.id?'border-color:var(--orange);':''}" onclick="pickReplaceSlot('${s.id}', this)">
+        <img class="slot-thumb" src="/admin/design-preview/${s.id}?token=${TOKEN}" onerror="this.style.display='none'">
+        <div class="slot-info">
+          <div class="slot-name">${s.name}</div>
+          <div class="slot-fmt">Slot ID: ${s.id}</div>
+        </div>
+        <span class="design-badge">active</span>
+      </div>
+    `).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="font-family:monospace;font-size:0.65rem;color:var(--red);">Failed to load slots</div>';
+  }
+}
+
+function pickReplaceSlot(id, el) {
+  uploadState.replaceSlot = id;
+  document.querySelectorAll('#slotList .slot-row').forEach(r => r.style.borderColor = '');
+  el.style.borderColor = 'var(--orange)';
+  showUploadStep();
+}
+
+function showUploadStep() {
+  const fmt = uploadState.format;
+  const action = uploadState.action;
+  const slot = uploadState.replaceSlot;
+  const fmtLabel = { strip: '📷 Photo Strip', polaroid: '🖼 Polaroid' }[fmt] || fmt;
+
+  let label = `Upload ${fmtLabel} design`;
+  if (action === 'replace' && slot) label += ` — replacing slot "${slot}"`;
+  if (action === 'add') label += ' — new slot';
+
+  document.getElementById('uploadStepLabel').textContent = label;
+  document.getElementById('ustep3').style.display = '';
+  document.getElementById('uploadResult').textContent = '';
+  const ni = document.getElementById('designNameInput');
+  if (ni) ni.value = '';
+  document.getElementById('designFile').value = '';
+}
+
+function resetUploadFlow() {
+  uploadState = { format: null, action: null, replaceSlot: null };
+  document.querySelectorAll('.fmt-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('ustep2').style.display = 'none';
+  document.getElementById('ustep3').style.display = 'none';
+  document.getElementById('replaceSlots').style.display = 'none';
+  document.getElementById('uploadResult').textContent = '';
+}
+
+function handleFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!uploadState.format) { setUploadResult('error', 'Please choose a format first'); return; }
+  if (!uploadState.action) { setUploadResult('error', 'Please choose replace or add'); return; }
+  if (uploadState.action === 'replace' && !uploadState.replaceSlot) {
+    setUploadResult('error', 'Please choose which design to replace'); return;
+  }
+  uploadDesign(file);
+}
+
+// Drag and drop
+window.addEventListener('load', () => {
+  const zone = document.getElementById('uploadZone');
+  if (!zone) return;
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault(); zone.classList.remove('drag');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type === 'image/png') {
+      document.getElementById('designFile').files = e.dataTransfer.files;
+      handleFileSelect({ files: [file] });
+    } else {
+      setUploadResult('error', 'PNG files only');
+    }
+  });
+});
+
+async function uploadDesign(file) {
+  const progress = document.getElementById('uploadProgress');
+  const fill     = document.getElementById('uploadFill');
+
+  progress.style.display = 'block';
+  fill.style.width = '0%';
+  setUploadResult('', '');
+
+  let pct = 0;
+  const interval = setInterval(() => { pct = Math.min(pct+8, 85); fill.style.width = pct+'%'; }, 100);
+
+  try {
+    const nameInput = document.getElementById('designNameInput');
+    const slotName  = (nameInput && nameInput.value.trim()) || file.name.replace(/\.png$/i,'');
+
+    const formData = new FormData();
+    formData.append('design', file);
+    formData.append('format', uploadState.format);
+    formData.append('action', uploadState.action);
+    if (uploadState.replaceSlot) formData.append('slotId', uploadState.replaceSlot);
+    formData.append('slotName', slotName);
+
+    const res  = await fetch('/admin/upload-design', {
+      method: 'POST',
+      headers: { 'x-admin-token': TOKEN },
+      body: formData,
+    });
+
+    clearInterval(interval);
+    fill.style.width = '100%';
+
+    const data = await res.json();
+    if (data.ok) {
+      setUploadResult('success', `✓ Design saved as "${data.slotId}" for ${uploadState.format} — photobooth updated live`);
+      loadAllDesigns();
+      loadStatus();
+      setTimeout(resetUploadFlow, 2000);
+    } else {
+      setUploadResult('error', '✗ ' + (data.error || 'Upload failed'));
+    }
+  } catch(e) {
+    clearInterval(interval);
+    setUploadResult('error', '✗ ' + e.message);
+  } finally {
+    setTimeout(() => { progress.style.display='none'; fill.style.width='0%'; }, 1500);
+  }
+}
+
+function setUploadResult(type, msg) {
+  const el = document.getElementById('uploadResult');
+  el.textContent = msg;
+  el.className = 'upload-result' + (type ? ' '+type : '');
+}
+
+// ── Show all current designs
+async function loadAllDesigns() {
+  const wrap = document.getElementById('allDesignsList');
+  const label = document.getElementById('allDesignsLabel');
+  if (!wrap) return;
+  try {
+    const res  = await fetch('/admin/designs', { headers: authHeaders() });
+    const data = await res.json();
+    const designs = data.designs || [];
+    if (!designs.length) {
+      wrap.innerHTML = '<div style="font-family:monospace;font-size:0.65rem;color:var(--text3);">No designs uploaded yet</div>';
+      return;
+    }
+    const fmtLabel = { strip:'📷 Photo Strip', polaroid:'🖼 Polaroid' };
+    // Group by format for count display
+    const stripCount    = designs.filter(d=>d.format==='strip').length;
+    const polaroidCount = designs.filter(d=>d.format==='polaroid').length;
+    wrap.innerHTML = `
+      <div style="font-family:'Source Code Pro',monospace;font-size:0.6rem;letter-spacing:0.08em;color:var(--text3);margin-bottom:8px;">
+        Photo Strip: ${stripCount}/5 · Polaroid: ${polaroidCount}/5
+      </div>` +
+    designs.map(d => `
+      <div class="slot-row" id="slot-${d.id}">
+        <img class="slot-thumb" src="/admin/design-preview/${d.id}?token=${TOKEN}" onerror="this.style.display='none'">
+        <div class="slot-info">
+          <div class="slot-name" id="slotname-${d.id}">${d.name || d.id}</div>
+          <div class="slot-fmt">${fmtLabel[d.format]||d.format} · ${new Date(d.uploadedAt).toLocaleDateString()}</div>
+        </div>
+        <div class="slot-actions">
+          <span class="design-badge">active</span>
+          <button class="q-btn" onclick="startRename('${d.id}')">✏️</button>
+          <button class="q-btn danger" onclick="deleteDesign('${d.id}')">✕</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    wrap.innerHTML = '<div style="font-family:monospace;font-size:0.65rem;color:var(--red);">Failed to load</div>';
+  }
+}
+
+async function startRename(id) {
+  const nameEl = document.getElementById('slotname-' + id);
+  if (!nameEl) return;
+  const current = nameEl.textContent;
+  const newName = prompt('Rename design:', current);
+  if (!newName || !newName.trim() || newName.trim() === current) return;
+  try {
+    const res = await fetch(`/admin/designs/${id}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ name: newName.trim() }),
+    });
+    const data = await res.json();
+    if (data.ok) { nameEl.textContent = newName.trim(); }
+    else alert('Rename failed: ' + (data.error || 'Unknown error'));
+  } catch(e) { alert('Rename failed: ' + e.message); }
+}
+
+async function deleteDesign(id) {
+  if (!confirm(`Delete design "${id}"?`)) return;
+  await fetch(`/admin/designs/${id}`, { method:'DELETE', headers: authHeaders() });
+  loadAllDesigns(); loadStatus();
+}
+
+// Keep old loadCurrentDesign for status check
+async function loadCurrentDesign() { loadAllDesigns(); }
+</script>
+</body>
+</html>

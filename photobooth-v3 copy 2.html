@@ -1,0 +1,2743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>KepalaKotak Photobooth</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Source+Code+Pro:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+/* ══════════════════════════════════════
+   DESIGN TOKENS — Claude Dark Mode
+══════════════════════════════════════ */
+:root {
+  /* Surfaces — dark layering system */
+  --bg:        #1c1c1a;   /* deepest background */
+  --surface:   #242422;   /* cards, panels */
+  --surface2:  #2e2e2b;   /* elevated cards, inputs */
+  --surface3:  #383835;   /* hover states */
+  --border:    #3a3a37;   /* subtle borders */
+  --border2:   #4a4a46;   /* stronger borders */
+
+  /* Text */
+  --text:      #f0ede3;   /* primary text */
+  --text2:     #c8c5bb;   /* secondary text */
+  --text3:     #7a7870;   /* muted/placeholder */
+
+  /* Accent — Anthropic orange stays vibrant on dark */
+  --orange:    #e8845e;   /* slightly brighter for dark bg */
+  --orange2:   #d97757;   /* hover */
+  --blue:      #7aaee0;
+  --green:     #8fa870;
+
+  /* Legacy aliases kept for JS references */
+  --dark:      #1c1c1a;
+  --light:     #f0ede3;
+  --sand:      #2e2e2b;
+  --gray:      #3a3a37;
+  --midgray:   #7a7870;
+
+  --r: 14px;
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+html, body {
+  width:100%; height:100%;
+  overflow:hidden;
+  background:var(--bg);
+  font-family:'Lora', Georgia, serif;
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  touch-action:manipulation;
+}
+
+/* ══════════════════════════════════════
+   APP SHELL
+══════════════════════════════════════ */
+#app {
+  width:100%; height:100%;
+  background:var(--bg);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+  position:relative;
+}
+
+/* ══════════════════════════════════════
+   TOP BAR
+══════════════════════════════════════ */
+.topbar {
+  height:64px; min-height:64px;
+  background:var(--bg);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 28px;
+  flex-shrink:0; z-index:60;
+}
+.tb-back {
+  width:40px; height:40px; border-radius:10px;
+  background:var(--surface2); border:none; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.2rem; transition:background 0.15s; flex-shrink:0;
+  color:var(--text);
+}
+.tb-back:hover { background:var(--surface3); }
+.tb-back.hidden { visibility:hidden; pointer-events:none; }
+.tb-logo { display:flex; align-items:center; gap:10px; }
+.tb-logo svg { width:26px; height:26px; }
+.tb-logo-text {
+  font-family:'Lora',serif; font-weight:700; font-size:1.15rem;
+  letter-spacing:-0.02em; color:var(--text);
+}
+.tb-step {
+  font-family:'Source Code Pro',monospace; font-size:0.68rem;
+  letter-spacing:0.14em; text-transform:uppercase; color:var(--text3);
+  flex-shrink:0;
+}
+
+/* ══════════════════════════════════════
+   PROGRESS
+══════════════════════════════════════ */
+.progress-wrap { height:3px; background:var(--border); flex-shrink:0; }
+.progress-bar  { height:100%; background:var(--orange); transition:width 0.4s ease; width:0%; }
+
+/* ══════════════════════════════════════
+   SCROLL AREA
+══════════════════════════════════════ */
+.screen-body {
+  flex:1; overflow-y:auto; overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  scroll-behavior:smooth;
+}
+.screen-body::-webkit-scrollbar { display:none; }
+
+/* ══════════════════════════════════════
+   STEP WRAPPER
+══════════════════════════════════════ */
+.step {
+  display:none; flex-direction:column;
+  padding:32px 28px 120px;
+  min-height:100%;
+  animation:slideIn 0.28s ease-out;
+}
+.step.active { display:flex; }
+@keyframes slideIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:none} }
+
+.step-eyebrow {
+  font-family:'Source Code Pro',monospace; font-size:0.65rem;
+  letter-spacing:0.2em; text-transform:uppercase;
+  color:var(--orange); margin-bottom:12px;
+  display:flex; align-items:center; gap:8px;
+}
+.step-eyebrow::before { content:''; width:18px; height:1px; background:var(--orange); }
+.step-title {
+  font-family:'Lora',serif; font-weight:700;
+  font-size:clamp(2rem,4vw,2.8rem);
+  line-height:1.1; letter-spacing:-0.03em;
+  color:var(--text); margin-bottom:6px;
+}
+.step-title em { font-style:italic; color:var(--orange); }
+.step-sub {
+  font-family:'Source Code Pro',monospace; font-size:0.68rem;
+  letter-spacing:0.1em; text-transform:uppercase;
+  color:var(--text3); margin-bottom:32px;
+}
+.section-divider { height:1px; background:var(--border); margin:24px 0; }
+
+/* ══════════════════════════════════════
+   BOTTOM CTA BAR
+══════════════════════════════════════ */
+.bottom-bar {
+  position:absolute; bottom:0; left:0; right:0; z-index:50;
+  padding:16px 28px 32px;
+  background:linear-gradient(to top, var(--bg) 72%, transparent);
+}
+.btn-primary {
+  width:100%; padding:18px;
+  background:var(--surface2); color:var(--text);
+  font-family:'Source Code Pro',monospace; font-size:0.8rem;
+  letter-spacing:0.12em; text-transform:uppercase;
+  border:1px solid var(--border2); border-radius:12px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  transition:background 0.2s, border-color 0.2s, transform 0.1s;
+}
+.btn-primary:not(:disabled):hover { background:var(--orange); border-color:var(--orange); color:#fff; }
+.btn-primary:not(:disabled):active { transform:scale(0.98); }
+.btn-primary:disabled { opacity:0.35; cursor:not-allowed; }
+.btn-primary svg { width:16px; height:16px; flex-shrink:0; }
+.btn-secondary {
+  width:100%; padding:16px;
+  background:transparent; color:var(--text2);
+  font-family:'Source Code Pro',monospace; font-size:0.76rem;
+  letter-spacing:0.1em; text-transform:uppercase;
+  border:1px solid var(--border); border-radius:12px; cursor:pointer;
+  transition:border-color 0.2s, color 0.2s; margin-top:10px;
+}
+.btn-secondary:hover { border-color:var(--orange); color:var(--orange); }
+.btn-danger {
+  width:100%; padding:16px;
+  background:transparent; color:#e07060;
+  font-family:'Source Code Pro',monospace; font-size:0.76rem;
+  letter-spacing:0.1em; text-transform:uppercase;
+  border:1px solid #5a2e28; border-radius:12px; cursor:pointer;
+  transition:all 0.2s; margin-top:10px;
+}
+.btn-danger:hover { background:rgba(224,112,96,0.08); border-color:#7a3e36; }
+
+/* ══════════════════════════════════════
+   STEP 1 — FORMAT CARDS
+══════════════════════════════════════ */
+.format-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+
+.format-card {
+  border:1.5px solid var(--border); border-radius:var(--r);
+  cursor:pointer; overflow:hidden; background:var(--surface);
+  transition:border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+  display:flex; flex-direction:column;
+}
+.format-card:hover { border-color:var(--orange); transform:translateY(-2px); box-shadow:0 8px 24px rgba(232,132,94,0.12); }
+.format-card.selected { border-color:var(--orange); background:rgba(232,132,94,0.06); }
+
+.fc-visual {
+  padding:20px 20px 14px;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--surface2); min-height:130px;
+}
+
+.vis-strip {
+  width:72px; height:100px;
+  background:var(--bg); border-radius:6px;
+  padding:5px 4px;
+  display:grid; grid-template-columns:1fr 1fr; gap:3px;
+}
+.vis-strip-frame { background:var(--border2); border-radius:2px; opacity:0.7; }
+
+.vis-polaroid {
+  width:110px; height:76px;
+  background:var(--bg); border-radius:5px;
+  padding:5px 5px 14px;
+  display:grid; grid-template-columns:1fr 1fr; gap:3px;
+}
+.vis-polaroid-frame { background:var(--border2); border-radius:2px; opacity:0.7; }
+
+.fc-body { padding:14px 16px 18px; }
+.fc-name {
+  font-family:'Lora',serif; font-weight:700; font-size:1.05rem;
+  color:var(--text); margin-bottom:4px;
+}
+.fc-desc {
+  font-family:'Source Code Pro',monospace; font-size:0.6rem;
+  letter-spacing:0.06em; color:var(--text3); line-height:1.6;
+}
+.fc-badge {
+  display:inline-block; margin-top:8px;
+  font-family:'Source Code Pro',monospace; font-size:0.56rem;
+  letter-spacing:0.1em; text-transform:uppercase;
+  padding:3px 8px; border-radius:100px;
+}
+.fc-badge.strip { background:rgba(232,132,94,0.15); color:var(--orange); }
+.fc-badge.pol   { background:rgba(122,174,224,0.15); color:var(--blue); }
+.fc-badge.film  { background:rgba(143,168,112,0.15); color:var(--green); }
+
+/* Film strip visual */
+.vis-film {
+  width:52px; height:100px;
+  background:#1a1a18; border-radius:3px;
+  display:flex; flex-direction:column;
+  position:relative; overflow:hidden;
+}
+.vis-film-holes {
+  position:absolute; top:0; bottom:0; width:10px;
+  display:flex; flex-direction:column; justify-content:space-around;
+  padding:4px 1px;
+}
+.vis-film-holes.left  { left:0; }
+.vis-film-holes.right { right:0; }
+.vis-film-hole {
+  width:7px; height:5px; background:#3a3a37;
+  border-radius:1px; margin:0 auto;
+}
+.vis-film-frames {
+  position:absolute; left:11px; right:11px; top:0; bottom:0;
+  display:flex; flex-direction:column; justify-content:space-between;
+  padding:4px 0;
+}
+.vis-film-frame {
+  flex:1; background:var(--border2); margin:1px 0; border-radius:1px; opacity:0.7;
+}
+
+/* ══════════════════════════════════════
+   STEP 2 — FILTERS
+══════════════════════════════════════ */
+.filter-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.filter-card {
+  border:1.5px solid var(--border); border-radius:10px;
+  cursor:pointer; overflow:hidden; background:var(--surface);
+  transition:all 0.15s;
+}
+.filter-card:hover { border-color:var(--orange); }
+.filter-card.selected { border-color:var(--orange); background:rgba(232,132,94,0.06); }
+.filter-preview {
+  width:100%; aspect-ratio:4/3; overflow:hidden; position:relative;
+  background:#000;
+}
+.filter-preview video {
+  width:100%; height:100%; object-fit:cover;
+  display:block; transform:scaleX(-1);
+}
+.filter-label {
+  text-align:center; padding:7px 4px;
+  font-family:'Source Code Pro',monospace; font-size:0.6rem;
+  letter-spacing:0.1em; text-transform:uppercase; color:var(--text2);
+}
+.filter-card.selected .filter-label { color:var(--orange); }
+
+/* ══════════════════════════════════════
+   STEP 3 — CUSTOMISE
+══════════════════════════════════════ */
+.custom-label {
+  font-family:'Source Code Pro',monospace; font-size:0.63rem;
+  letter-spacing:0.15em; text-transform:uppercase; color:var(--text3);
+  margin-bottom:12px; display:flex; align-items:center; gap:8px;
+}
+.custom-label::after { content:''; flex:1; height:1px; background:var(--border); }
+.custom-section { margin-bottom:24px; }
+
+.preview-wrap {
+  background:var(--surface2); border:1px solid var(--border); border-radius:12px;
+  padding:16px; display:flex; align-items:center; justify-content:center;
+  margin-bottom:28px; min-height:200px;
+}
+#liveCanvas {
+  border-radius:6px; max-width:100%; max-height:340px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.4);
+}
+
+.swatch-row { display:flex; gap:9px; flex-wrap:wrap; }
+.swatch {
+  width:38px; height:38px; border-radius:9px; cursor:pointer;
+  border:2.5px solid transparent; transition:transform 0.15s, border-color 0.15s;
+  position:relative;
+}
+.swatch:hover { transform:scale(1.1); }
+.swatch.selected { border-color:var(--orange); }
+.swatch.light-bg { border-color:var(--border2); }
+.swatch.light-bg.selected { border-color:var(--orange); }
+.swatch.selected::after {
+  content:'✓'; position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:0.8rem; font-weight:700;
+}
+
+.caption-input {
+  width:100%; padding:14px 16px;
+  font-family:'Lora',serif; font-size:1rem;
+  background:var(--surface2); border:1.5px solid var(--border);
+  border-radius:10px; color:var(--text); outline:none;
+  transition:border-color 0.2s;
+}
+.caption-input:focus { border-color:var(--orange); }
+.caption-input::placeholder { color:var(--text3); }
+
+.emoji-row { display:flex; gap:8px; flex-wrap:wrap; }
+.emoji-btn {
+  width:44px; height:44px; border-radius:10px;
+  background:var(--surface2); border:1.5px solid var(--border);
+  cursor:pointer; font-size:1.3rem;
+  display:flex; align-items:center; justify-content:center;
+  transition:all 0.15s;
+}
+.emoji-btn:hover { background:var(--surface3); border-color:var(--border2); }
+.emoji-btn.selected { border-color:var(--orange); background:rgba(232,132,94,0.1); }
+
+/* Design template toggle */
+.design-toggle-row { display:flex; gap:10px; flex-wrap:wrap; }
+.design-toggle-btn {
+  display:flex; align-items:center; gap:8px;
+  padding:10px 14px; border-radius:10px;
+  border:1.5px solid var(--border); background:var(--surface2);
+  cursor:pointer; transition:all 0.15s; flex:1; min-width:120px;
+}
+.design-toggle-btn:hover { border-color:var(--orange); }
+.design-toggle-btn.selected { border-color:var(--orange); background:rgba(232,132,94,0.08); }
+.design-toggle-thumb {
+  width:28px; height:40px; object-fit:cover; border-radius:3px;
+  border:1px solid var(--border2); flex-shrink:0;
+}
+.design-toggle-info { flex:1; min-width:0; }
+.design-toggle-name {
+  font-family:'Source Code Pro',monospace; font-size:0.62rem;
+  letter-spacing:0.06em; color:var(--text2);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.design-toggle-label {
+  font-family:'Source Code Pro',monospace; font-size:0.56rem;
+  letter-spacing:0.06em; color:var(--text3); margin-top:1px;
+}
+
+/* ══════════════════════════════════════
+   STEP 4 — SHOOT
+══════════════════════════════════════ */
+#shootScreen {
+  display:none; position:absolute; inset:0; z-index:70;
+  flex-direction:column; background:#0a0a08;
+  align-items:center; justify-content:center;
+}
+#shootScreen.active { display:flex; }
+
+.vf-wrap {
+  position:relative; overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  background:#0a0a08;
+  /* Size set dynamically by JS based on format */
+}
+.vf-wrap.portrait {
+  width:100%; max-width:min(100%, calc(100vh * 0.45));
+  aspect-ratio: 2/3;
+  margin: 0 auto;
+}
+.vf-wrap.landscape {
+  width:100%; max-width:min(100%, calc(100vh * 0.7));
+  aspect-ratio: 3/2;
+  margin: 0 auto;
+}
+#camVideo {
+  width:100%; height:100%; object-fit:cover;
+  display:block; transform:scaleX(-1);
+}
+
+.vf-corner {
+  position:absolute; width:20px; height:20px;
+  border-color:rgba(232,132,94,0.7); border-style:solid; border-width:0;
+}
+.vf-corner.tl { top:16px; left:16px; border-top-width:2px; border-left-width:2px; }
+.vf-corner.tr { top:16px; right:16px; border-top-width:2px; border-right-width:2px; }
+.vf-corner.bl { bottom:16px; left:16px; border-bottom-width:2px; border-left-width:2px; }
+.vf-corner.br { bottom:16px; right:16px; border-bottom-width:2px; border-right-width:2px; }
+
+.shot-pill {
+  position:absolute; top:16px; left:50%; transform:translateX(-50%);
+  background:rgba(0,0,0,0.6); backdrop-filter:blur(8px);
+  border-radius:100px; padding:5px 16px;
+  font-family:'Source Code Pro',monospace; font-size:0.68rem;
+  letter-spacing:0.12em; text-transform:uppercase; color:#fff; z-index:5;
+  border:1px solid rgba(255,255,255,0.1);
+}
+.shot-pill .cur { color:var(--orange); }
+
+.vf-thumbs {
+  position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+  display:flex; gap:8px; z-index:5;
+}
+.vf-thumb {
+  width:48px; height:36px; border-radius:5px;
+  border:1.5px solid rgba(255,255,255,0.22);
+  background:rgba(255,255,255,0.08); overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+}
+.vf-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.vf-thumb.empty::after { content:''; width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.2); }
+
+.flash-cover {
+  position:absolute; inset:0; background:#fff;
+  opacity:0; pointer-events:none; z-index:20;
+  transition:opacity 0.04s;
+}
+.flash-cover.flash { opacity:1; }
+
+.countdown-wrap {
+  position:absolute; inset:0; z-index:15;
+  display:flex; align-items:center; justify-content:center;
+  pointer-events:none;
+}
+.countdown-num {
+  font-family:'Lora',serif; font-size:12rem; font-weight:700;
+  color:#fff; opacity:0; transform:scale(1.4);
+  text-shadow:0 8px 48px rgba(0,0,0,0.6);
+  line-height:1;
+}
+.countdown-num.pop { animation:cPop 0.9s ease-out forwards; }
+@keyframes cPop {
+  0%   { opacity:0; transform:scale(1.4); }
+  20%  { opacity:1; transform:scale(0.96); }
+  70%  { opacity:1; transform:scale(1); }
+  100% { opacity:0; transform:scale(0.72); }
+}
+
+.shoot-panel {
+  background:var(--surface); border-top:1px solid var(--border);
+  padding:16px 28px 36px;
+  display:flex; flex-direction:column; gap:10px;
+  flex-shrink:0;
+}
+.shoot-info-row { text-align:center; }
+.shoot-status {
+  font-family:'Source Code Pro',monospace; font-size:0.6rem;
+  letter-spacing:0.14em; text-transform:uppercase; color:var(--text3);
+  margin-bottom:2px;
+}
+.shoot-next {
+  font-family:'Lora',serif; font-weight:600; font-size:1rem; color:var(--text);
+}
+.shoot-btn-row {
+  display:flex; align-items:center; justify-content:center; gap:0;
+}
+.shoot-btn-spacer {
+  flex:1; display:flex; align-items:center; justify-content:flex-end;
+}
+
+.shutter {
+  width:72px; height:72px; border-radius:50%;
+  background:var(--orange); border:4px solid var(--surface);
+  box-shadow:0 0 0 2.5px var(--orange), 0 6px 22px rgba(232,132,94,0.42);
+  cursor:pointer; flex-shrink:0; position:relative;
+  transition:transform 0.12s, box-shadow 0.12s;
+}
+.shutter::after {
+  content:''; position:absolute; inset:6px; border-radius:50%;
+  border:1.5px solid rgba(255,255,255,0.28);
+}
+.shutter:hover { transform:scale(1.07); }
+.shutter:active { transform:scale(0.93); }
+.shutter.wait { background:var(--border2); box-shadow:0 0 0 2.5px var(--border2); cursor:not-allowed; }
+.shutter.counting { background:var(--blue); box-shadow:0 0 0 2.5px var(--blue), 0 6px 22px rgba(122,174,224,0.4); }
+
+.interval-track { height:4px; background:var(--border); border-radius:100px; overflow:hidden; }
+.interval-fill  { height:100%; background:var(--orange); width:0%; transition:width 0.1s linear; }
+
+.shoot-retake {
+  padding:10px 20px;
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px; cursor:pointer;
+  font-family:'Source Code Pro',monospace; font-size:0.62rem;
+  letter-spacing:0.08em; color:var(--text3);
+  transition:background 0.15s; flex-shrink:0;
+}
+.shoot-retake:hover { background:var(--surface3); color:var(--text2); }
+
+/* ══════════════════════════════════════
+   STEP 5 — REVIEW
+══════════════════════════════════════ */
+.review-wrap {
+  background:var(--surface2); border:1px solid var(--border); border-radius:14px;
+  padding:24px; display:flex; align-items:center; justify-content:center;
+  margin-bottom:28px; min-height:240px;
+}
+#reviewCanvas {
+  border-radius:6px; max-width:100%;
+  box-shadow:0 6px 32px rgba(0,0,0,0.5);
+}
+
+/* ══════════════════════════════════════
+   STEP 6 — CONFIRM + PRINT
+══════════════════════════════════════ */
+.confirm-card {
+  width:100%; max-width:340px;
+  background:var(--surface); border:1.5px solid var(--border);
+  border-radius:16px; overflow:hidden; margin-bottom:24px;
+}
+.confirm-row { display:flex; align-items:center; gap:16px; padding:18px 20px; }
+.confirm-icon { font-size:1.6rem; flex-shrink:0; }
+.confirm-item { font-weight:600; font-size:0.95rem; }
+.confirm-item-sub {
+  font-family:'Source Code Pro',monospace; font-size:0.62rem;
+  letter-spacing:0.08em; color:var(--text3); margin-top:2px;
+}
+.confirm-divider { height:1px; background:var(--border); margin:0 20px; }
+.confirm-price-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 20px;
+}
+.confirm-price-label {
+  font-family:'Source Code Pro',monospace; font-size:0.7rem;
+  letter-spacing:0.12em; text-transform:uppercase; color:var(--text3);
+}
+.confirm-price { font-size:1.5rem; font-weight:700; letter-spacing:-0.02em; color:var(--orange); }
+.btn-confirm {
+  width:100%; max-width:340px; font-size:1rem; padding:18px; gap:10px;
+  box-shadow:0 4px 24px rgba(232,132,94,0.25);
+}
+
+/* ══════════════════════════════════════
+   DONE SCREEN
+══════════════════════════════════════ */
+#doneScreen {
+  display:none; position:absolute; inset:0; z-index:70;
+  background:var(--bg); flex-direction:column;
+  align-items:center; justify-content:center;
+  padding:40px 28px; text-align:center; gap:0;
+  animation:slideIn 0.3s ease-out;
+}
+#doneScreen.active { display:flex; }
+.done-emoji { font-size:4rem; margin-bottom:20px; }
+.done-title {
+  font-family:'Lora',serif; font-weight:700;
+  font-size:clamp(2rem,5vw,3rem);
+  letter-spacing:-0.03em; color:var(--text);
+  line-height:1.1; margin-bottom:8px;
+}
+.done-title em { font-style:italic; color:var(--orange); }
+.done-sub {
+  font-family:'Source Code Pro',monospace; font-size:0.68rem;
+  letter-spacing:0.12em; text-transform:uppercase;
+  color:var(--text3); margin-bottom:40px;
+}
+
+.qr-card {
+  background:var(--surface); border:1.5px solid var(--border);
+  border-radius:18px; padding:28px 24px;
+  display:flex; flex-direction:column; align-items:center; gap:14px;
+  width:100%; max-width:320px; margin-bottom:28px;
+  box-shadow:0 4px 24px rgba(0,0,0,0.3);
+}
+.qr-card.hidden { display:none; }
+.qr-label {
+  font-family:'Source Code Pro',monospace; font-size:0.64rem;
+  letter-spacing:0.14em; text-transform:uppercase; color:var(--text3);
+}
+.qr-box {
+  width:168px; height:168px; background:#fff;
+  border-radius:10px; overflow:hidden;
+}
+#qrCanvas { display:block; }
+.qr-note {
+  font-family:'Source Code Pro',monospace; font-size:0.6rem;
+  letter-spacing:0.06em; color:var(--text3); text-align:center; line-height:1.5;
+}
+.drive-badge {
+  display:flex; align-items:center; gap:8px;
+  font-family:'Source Code Pro',monospace; font-size:0.62rem;
+  letter-spacing:0.06em; color:var(--text3);
+  background:var(--surface2); padding:8px 14px; border-radius:8px;
+  border:1px solid var(--border); margin-bottom:12px;
+}
+
+.done-actions { width:100%; max-width:320px; display:flex; flex-direction:column; gap:10px; }
+
+/* Queue number card */
+.queue-card {
+  background:var(--surface); border:1.5px solid var(--orange);
+  border-radius:18px; padding:24px 28px;
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  width:100%; max-width:320px; margin-bottom:20px;
+  box-shadow:0 0 32px rgba(232,132,94,0.12);
+}
+.queue-card-label {
+  font-family:'Source Code Pro',monospace; font-size:0.62rem;
+  letter-spacing:0.16em; text-transform:uppercase; color:var(--text3);
+}
+.queue-card-num {
+  font-family:'Lora',serif; font-weight:700;
+  font-size:4rem; letter-spacing:-0.04em; color:var(--orange);
+  line-height:1;
+}
+.queue-card-sub {
+  font-family:'Source Code Pro',monospace; font-size:0.62rem;
+  letter-spacing:0.08em; color:var(--text3); text-align:center;
+}
+
+/* ══════════════════════════════════════
+   PERMISSION OVERLAY
+══════════════════════════════════════ */
+#permOverlay {
+  position:absolute; inset:0; z-index:90;
+  background:var(--bg);
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:12px; padding:32px; text-align:center;
+}
+#permOverlay.gone { display:none; }
+.perm-icon  { font-size:3rem; opacity:0.7; }
+.perm-title { font-family:'Lora',serif; font-weight:700; font-size:1.4rem; color:var(--text); }
+.perm-text  { font-family:'Source Code Pro',monospace; font-size:0.66rem; color:var(--text3); line-height:1.65; max-width:280px; }
+.perm-btn   {
+  margin-top:8px; padding:14px 36px;
+  background:var(--orange); color:#fff;
+  font-family:'Source Code Pro',monospace; font-size:0.74rem;
+  letter-spacing:0.1em; text-transform:uppercase;
+  border:none; border-radius:10px; cursor:pointer; transition:background 0.2s;
+}
+.perm-btn:hover { background:var(--orange2); }
+
+/* ══════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════ */
+@media (min-width:900px) and (orientation:landscape) {
+  .format-grid { grid-template-columns:1fr 1fr; gap:20px; }
+  .filter-grid  { grid-template-columns:repeat(4,1fr); }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ PERMISSION OVERLAY ══ -->
+  <div id="permOverlay">
+    <div class="perm-icon">📷</div>
+    <div class="perm-title">Camera access needed</div>
+    <div class="perm-text">KepalaKotak needs your camera to run the photobooth experience. Everything stays on this device.</div>
+    <button class="perm-btn" onclick="startCamera()">Enable Camera</button>
+  </div>
+
+  <!-- ══ TOP BAR ══ -->
+  <div class="topbar">
+    <button class="tb-back hidden" id="backBtn" onclick="goBack()">←</button>
+    <div class="tb-logo">
+      <svg viewBox="0 0 100 100" fill="none">
+        <path d="M50 10L53.5 43L82 22L62 47L94 50L62 53L82 78L53.5 57L50 90L46.5 57L18 78L38 53L6 50L38 47L18 22L46.5 43Z" fill="#e8845e"/>
+      </svg>
+      <span class="tb-logo-text">KepalaKotak</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span id="connDot" title="Server connection" style="width:8px;height:8px;border-radius:50%;background:#7a7870;display:inline-block;transition:background 0.3s;flex-shrink:0;"></span>
+      <span class="tb-step" id="tbStep">Step 1 of 6</span>
+    </div>
+  </div>
+
+  <!-- ══ PROGRESS ══ -->
+  <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+
+  <!-- ══════════════════ SCROLLABLE STEPS ══════════════════ -->
+  <div class="screen-body" id="screenBody">
+
+    <!-- ▸ STEP 1 — FORMAT -->
+    <div class="step active" id="step1">
+      <div class="step-eyebrow">Welcome</div>
+      <div class="step-title">Choose your<br><em>format.</em></div>
+      <div class="step-sub">Same 4×6" paper — different layout</div>
+
+      <div class="format-grid">
+
+        <!-- Photo Strip -->
+        <div class="format-card" id="fc-strip" onclick="pickFormat('strip')">
+          <div class="fc-visual">
+            <div class="vis-strip">
+              <div class="vis-strip-frame"></div>
+              <div class="vis-strip-frame"></div>
+              <div class="vis-strip-frame"></div>
+              <div class="vis-strip-frame"></div>
+              <div class="vis-strip-frame"></div>
+              <div class="vis-strip-frame"></div>
+            </div>
+          </div>
+          <div class="fc-body">
+            <div class="fc-name">Photo Strip</div>
+            <div class="fc-desc">Portrait 4×6" · 3 photos<br>duplicated into 2 columns<br>Plain or custom design!</div>
+            <div class="fc-badge strip">3 shots</div>
+          </div>
+        </div>
+
+        <!-- Polaroid -->
+        <div class="format-card" id="fc-polaroid" onclick="pickFormat('polaroid')">
+          <div class="fc-visual">
+            <div class="vis-polaroid">
+              <div class="vis-polaroid-frame"></div>
+              <div class="vis-polaroid-frame"></div>
+            </div>
+          </div>
+          <div class="fc-body">
+            <div class="fc-name">Polaroid</div>
+            <div class="fc-desc">Landscape 4×6" · 1 photo<br>duplicated side by side<br>Custom border colour!</div>
+            <div class="fc-badge pol">1 shot</div>
+          </div>
+        </div>
+
+
+
+      </div>
+    </div><!-- /step1 -->
+
+    <!-- ▸ STEP 2 — FILTER -->
+    <div class="step" id="step2">
+      <div class="step-eyebrow">Step 2</div>
+      <div class="step-title">Pick a<br><em>filter.</em></div>
+      <div class="step-sub">Tap to preview live on camera</div>
+      <div class="filter-grid" id="filterGrid"></div>
+    </div>
+
+    <!-- ▸ STEP 3 — CUSTOMISE -->
+    <div class="step" id="step3">
+      <div class="step-eyebrow">Step 3</div>
+      <div class="step-title">Make it<br><em>yours.</em></div>
+      <div class="step-sub" id="step3Sub">Border · Caption · Decoration</div>
+
+      <!-- Custom design toggle — shown when designs exist for this format -->
+      <div class="custom-section" id="designToggleSection" style="display:none;">
+        <div class="custom-label">Design template</div>
+        <div class="design-toggle-row" id="designToggleRow"></div>
+      </div>
+
+      <div class="preview-wrap">
+        <canvas id="liveCanvas"></canvas>
+      </div>
+
+      <!-- Standard customisation — hidden when using custom design -->
+      <div id="standardCustomSection">
+        <div class="custom-section">
+          <div class="custom-label">Border colour</div>
+          <div class="swatch-row" id="swatchRow"></div>
+        </div>
+
+        <div class="custom-section" id="captionSection">
+          <div class="custom-label">Caption <span style="font-weight:300;opacity:0.6;">(optional)</span></div>
+          <input class="caption-input" id="captionInput" type="text" maxlength="17"
+                 placeholder="e.g. Selamat Hari Raya" oninput="onCustomChange()">
+        </div>
+
+        <div class="custom-section" id="emojiSection">
+          <div class="custom-label">Decoration <span style="font-weight:300;opacity:0.6;">(pick up to 3)</span></div>
+          <div class="emoji-row" id="emojiRow"></div>
+        </div>
+      </div>
+    </div><!-- /step3 -->
+
+    <!-- ▸ STEP 5 — REVIEW  (step 4 = shoot overlay) -->
+    <div class="step" id="step5">
+      <div class="step-eyebrow">Step 5</div>
+      <div class="step-title">Looking<br><em>good?</em></div>
+      <div class="step-sub">Review your print before confirming</div>
+
+      <div class="review-wrap">
+        <canvas id="reviewCanvas"></canvas>
+      </div>
+    </div><!-- /step5 -->
+
+    <!-- ▸ STEP 6 — OUTPUT -->
+    <div class="step" id="step6">
+      <div class="step-eyebrow">Step 6</div>
+      <div class="step-title">Ready to<br><em>print!</em></div>
+      <div class="step-sub">You'll get a physical print + digital copy</div>
+
+      <div class="confirm-card">
+        <div class="confirm-row">
+          <span class="confirm-icon">🖨️</span>
+          <div>
+            <div class="confirm-item">4×6" physical print</div>
+            <div class="confirm-item-sub">Collect at the kiosk</div>
+          </div>
+        </div>
+        <div class="confirm-divider"></div>
+        <div class="confirm-row">
+          <span class="confirm-icon">📱</span>
+          <div>
+            <div class="confirm-item">Digital copy via QR code</div>
+            <div class="confirm-item-sub">Scan to save to your phone</div>
+          </div>
+        </div>
+        <div class="confirm-divider"></div>
+        <div class="confirm-price-row">
+          <span class="confirm-price-label">Total</span>
+          <span class="confirm-price">RM 15</span>
+        </div>
+      </div>
+
+      <button class="btn-primary btn-confirm" id="confirmPrintBtn" onclick="confirmAndPrint()">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <path d="M5 10l4 4 6-6"/>
+        </svg>
+        Confirm &amp; Print
+      </button>
+
+    </div><!-- /step6 -->
+
+  </div><!-- /screen-body -->
+
+  <!-- ══ BOTTOM CTA BAR (for scroll steps) ══ -->
+  <div class="bottom-bar" id="bottomBar">
+    <button class="btn-primary" id="nextBtn" disabled onclick="goNext()">
+      Continue
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 8h10M9 4l4 4-4 4"/>
+      </svg>
+    </button>
+    <!-- Step 5 retake -->
+    <button class="btn-danger" id="retakeBtn" style="display:none" onclick="doRetake()">
+      🔄 Retake photos
+    </button>
+  </div>
+
+  <!-- ══════════════════ SHOOT OVERLAY (step 4) ══════════════════ -->
+  <div id="shootScreen">
+    <div class="vf-wrap">
+      <video id="camVideo" autoplay muted playsinline></video>
+      <div class="vf-corner tl"></div>
+      <div class="vf-corner tr"></div>
+      <div class="vf-corner bl"></div>
+      <div class="vf-corner br"></div>
+
+      <div class="shot-pill">
+        <span class="cur" id="pillCur">0</span>/<span id="pillTot">3</span>
+      </div>
+
+      <div class="vf-thumbs" id="vfThumbs"></div>
+
+      <div class="flash-cover" id="flashCover"></div>
+      <div class="countdown-wrap">
+        <div class="countdown-num" id="cdNum">3</div>
+      </div>
+    </div>
+
+    <div class="shoot-panel">
+      <div class="interval-track"><div class="interval-fill" id="intFill"></div></div>
+      <!-- Info row above shutter -->
+      <div class="shoot-info-row">
+        <div class="shoot-status" id="shootStatus">Tap the shutter when ready</div>
+        <div class="shoot-next" id="shootNext">Photo 1 of 3</div>
+      </div>
+      <!-- Shutter centred, redo tucked to the right -->
+      <div class="shoot-btn-row">
+        <div class="shoot-btn-spacer"></div>
+        <button class="shutter" id="shutterBtn" onclick="handleShutter()"></button>
+        <div class="shoot-btn-spacer">
+          <button class="shoot-retake" onclick="doRetake()">✕ redo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ DONE SCREEN ══════════════════ -->
+  <div id="doneScreen">
+    <div class="done-emoji">🎉</div>
+    <div class="done-title">You're all<br><em>done!</em></div>
+    <div class="done-sub">Collect your print at the counter</div>
+
+    <!-- Queue number card -->
+    <div class="queue-card" id="queueCard">
+      <div class="queue-card-label">Your queue number</div>
+      <div class="queue-card-num" id="queueNumDisplay">—</div>
+      <div class="queue-card-sub" id="queuePosSub">Sending to printer…</div>
+    </div>
+
+    <div class="qr-card" id="qrCard">
+      <div class="qr-label">📱 Scan to save your digital copy</div>
+      <div class="qr-box"><canvas id="qrCanvas" width="168" height="168"></canvas></div>
+      <div class="qr-note">Saved to Google Drive · Your photos only</div>
+    </div>
+
+    <div class="drive-badge" id="driveBadge">
+      <svg width="16" height="16" viewBox="0 0 24 24">
+        <path d="M4.5 20L8.5 13H20.5L16.5 20H4.5Z" fill="#34A853"/>
+        <path d="M1 14L7 4H13L7 14H1Z" fill="#4285F4"/>
+        <path d="M13 4L20.5 13L14.5 20L7 4H13Z" fill="#FBBC05"/>
+      </svg>
+      Uploading to Google Drive…
+    </div>
+
+    <div class="done-actions">
+      <button class="btn-secondary" onclick="resetAll()">📸 Take another!</button>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- Hidden canvases for compositing -->
+<canvas id="captureCanvas"   style="display:none"></canvas>
+<canvas id="compositeCanvas" style="display:none"></canvas>
+
+<!-- ═══════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════ -->
+<script>
+// ───────────────────────────────────────────
+// STATE
+// ───────────────────────────────────────────
+const APP = {
+  step: 1,
+  format: null,
+  filter: 'none',
+  borderColor: '#ffffff',
+  caption: '',
+  emojis: [],
+  shots: [],
+  outputMode: 'both',  // always print + digital
+  stream: null,
+  capturing: false,
+  shootIdx: 0,
+  sessionId: 'sess_' + Date.now(),
+  queueNumber: null,
+  useCustomDesign: false,   // true = use uploaded overlay, false = standard layout
+  selectedDesignId: null,   // which design slot is selected
+};
+
+// ───────────────────────────────────────────
+// FILTERS
+// ───────────────────────────────────────────
+const FILTERS = {
+  none:   { label:'Natural', css:'brightness(1) contrast(1) saturate(1)' },
+  mono:   { label:'Mono',    css:'brightness(1.06) contrast(1.25) saturate(0)' },
+  sepia:  { label:'Sepia',   css:'brightness(1) contrast(1.1) sepia(0.9)' },
+  vivid:  { label:'Vivid',   css:'brightness(1.05) contrast(1.3) saturate(1.9)' },
+  mist:   { label:'Mist',    css:'brightness(1.1) contrast(0.9) saturate(0.8) hue-rotate(190deg)' },
+  dusk:   { label:'Dusk',    css:'brightness(1.06) contrast(1.12) saturate(1.4) hue-rotate(16deg) sepia(0.2)' },
+  fade:   { label:'Fade',    css:'brightness(1.14) contrast(0.85) saturate(0.65)' },
+  chrome: { label:'Chrome',  css:'brightness(1.08) contrast(1.42) saturate(1.55)' },
+  noir:   { label:'Noir',    css:'brightness(0.88) contrast(1.6) saturate(0) grayscale(1)' },
+};
+
+// ───────────────────────────────────────────
+// BORDER COLOURS
+// ───────────────────────────────────────────
+const SWATCHES = [
+  { hex:'#ffffff', label:'White',     light:true },
+  { hex:'#faf9f5', label:'Cream',     light:true },
+  { hex:'#141413', label:'Black',     light:false },
+  { hex:'#d97757', label:'Terracotta',light:false },
+  { hex:'#f2c4ce', label:'Blush',     light:true },
+  { hex:'#bdd9f2', label:'Sky',       light:true },
+  { hex:'#c8d9bc', label:'Sage',      light:true },
+  { hex:'#d4c5f9', label:'Lavender',  light:true },
+  { hex:'#f5d78e', label:'Gold',      light:true },
+  { hex:'#1e2a4a', label:'Midnight',  light:false },
+];
+
+const EMOJIS = ['💕','✨','🌸','🎉','⭐','🌙','🦋','🌈','💫','🎀','🍀','🔥'];
+
+// ───────────────────────────────────────────
+// BOOT
+// ───────────────────────────────────────────
+// ───────────────────────────────────────────
+// WEBSOCKET — connection to laptop server
+// ───────────────────────────────────────────
+let WS = null;
+let WS_READY = false;
+
+// ┌──────────────────────────────────────────┐
+// │  MOCK_CAM = true  → use iPad camera,     │
+// │  no DSLR or server needed for capture.   │
+// │  Set false when DSLR is connected.       │
+// └──────────────────────────────────────────┘
+const MOCK_CAM = true;
+
+function connectWS() {
+  // Connect to the same host that served this page, on same port
+  const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.hostname}:${location.port}`;
+  console.log('[WS] Connecting to', wsUrl);
+
+  WS = new WebSocket(wsUrl);
+
+  WS.onopen = () => {
+    console.log('[WS] Connected to laptop server');
+    document.getElementById('connDot').style.background = '#e8845e';
+    WS.send(JSON.stringify({ type: 'ping' }));
+  };
+
+  WS.onmessage = (e) => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch(err) { return; }
+
+    if (msg.type === 'ready' || msg.type === 'pong') {
+      WS_READY = true;
+      document.getElementById('connDot').style.background = '#8fa870';
+      console.log('[WS] Server ready');
+      // In MOCK_CAM mode the overlay is dismissed by the camera button, not here
+      if (!MOCK_CAM) {
+        document.getElementById('permOverlay').classList.add('gone');
+      }
+    }
+
+    if (msg.type === 'capturing') {
+      // Server confirmed it's triggering the DSLR — show countdown
+      setShootUI('Camera firing…', `Photo ${msg.shotIndex + 1} of ${APP.format === 'polaroid' ? 1 : 3}`);
+    }
+
+    if (msg.type === 'photo') {
+      onPhotoReceived(msg.dataUrl, msg.shotIndex, msg.filter);
+    }
+
+    if (msg.type === 'queue') {
+      // If on done screen, refresh our position
+      if (APP.queueNumber) updateQueuePosition(APP.queueNumber, msg.queue);
+    }
+
+    if (msg.type === 'design_updated') {
+      console.log('[WS] Design updated — reloading');
+      loadCustomDesign();  // loadCustomDesign now always triggers re-render after load
+    }
+
+    if (msg.type === 'error') {
+      console.error('[WS] Server error:', msg.message);
+      setShootUI('⚠ Camera error — tap to retry', '');
+      APP.capturing = false;
+      document.getElementById('shutterBtn').className = 'shutter';
+    }
+  };
+
+  WS.onclose = () => {
+    WS_READY = false;
+    document.getElementById('connDot').style.background = '#e07060'; // red = disconnected
+    console.warn('[WS] Disconnected — retrying in 3s');
+    setTimeout(connectWS, 3000);
+  };
+
+  WS.onerror = (e) => {
+    console.error('[WS] Connection error');
+  };
+}
+
+window.addEventListener('load', () => {
+  buildFilters();
+  buildSwatches();
+  buildEmojis();
+  connectWS();
+  startLivePreview();
+  loadCustomDesign(); // loads design, calls updateFilmCardThumbnail internally
+});
+
+// Live preview: iPad's own camera used ONLY for the viewfinder + filter cards
+// Actual DSLR captures come from the laptop via WebSocket
+async function startLivePreview() {
+  try {
+    const constraints = {
+      video:{ width:{ideal:1280}, height:{ideal:960} }, audio:false
+    };
+    APP.stream = await navigator.mediaDevices.getUserMedia(constraints);
+    document.getElementById('camVideo').srcObject = APP.stream;
+    attachFilterPreviews();
+    console.log('[CAM] Live preview started');
+
+    // In mock cam mode, camera IS the capture source — mark as ready immediately
+    if (MOCK_CAM) {
+      document.getElementById('permOverlay').classList.add('gone');
+      document.getElementById('connDot').style.background = '#e8845e'; // orange = mock mode
+      document.getElementById('connDot').title = 'Mock mode — using iPad camera';
+    }
+  } catch(e) {
+    console.warn('[CAM] Camera error:', e.message);
+    document.querySelector('.perm-text').textContent =
+      `Camera blocked: ${e.message}. Go to iPad Settings → Safari → Camera → Allow, then reload.`;
+    document.querySelector('.perm-btn').textContent = 'Try Again';
+  }
+}
+
+function startCamera() {
+  // Called by the "Enable Camera" button tap — user gesture required by Safari
+  startLivePreview();
+}
+
+
+// ───────────────────────────────────────────
+// STEP NAVIGATION
+// ───────────────────────────────────────────
+const TOTAL_STEPS = 6;
+const STEP_PCTS   = { 1:16, 2:32, 3:48, 4:66, 5:82, 6:100 };
+
+function goToStep(n) {
+  const prev = APP.step;
+
+  // Hide previous
+  if (prev === 4) {
+    document.getElementById('shootScreen').classList.remove('active');
+  } else {
+    const el = document.getElementById('step'+prev);
+    if (el) el.classList.remove('active');
+  }
+
+  APP.step = n;
+  document.getElementById('progressBar').style.width = (STEP_PCTS[n] || 100)+'%';
+  document.getElementById('tbStep').textContent = `Step ${n} of ${TOTAL_STEPS}`;
+  document.getElementById('backBtn').classList.toggle('hidden', n <= 1);
+
+  if (n === 4) {
+    document.getElementById('shootScreen').classList.add('active');
+    document.getElementById('bottomBar').style.display = 'none';
+    // Set viewfinder aspect ratio based on format
+    const vfWrap = document.querySelector('.vf-wrap');
+    if (vfWrap) {
+      vfWrap.classList.remove('portrait', 'landscape');
+      vfWrap.classList.add(APP.format === 'polaroid' ? 'landscape' : 'portrait');
+    }
+    initShoot();
+  } else if (n === 6) {
+    // Step 6 uses its own confirm button — hide the bottom bar
+    document.getElementById('bottomBar').style.display = 'none';
+    const el = document.getElementById('step6');
+    if (el) { el.classList.add('active'); document.getElementById('screenBody').scrollTop = 0; }
+  } else {
+    document.getElementById('bottomBar').style.display = '';
+    const el = document.getElementById('step'+n);
+    if (el) {
+      el.classList.add('active');
+      document.getElementById('screenBody').scrollTop = 0;
+    }
+    if (n === 3) setTimeout(renderLive, 60);
+    if (n === 5) buildReview();
+  }
+
+  syncNextBtn();
+}
+
+function goBack() {
+  if (APP.step <= 1) return;
+  if (APP.step === 4) { goToStep(3); return; }
+  if (APP.step === 5) { goToStep(4); return; }
+  goToStep(APP.step - 1);
+}
+
+function goNext() {
+  if (APP.step === 1 && !APP.format) return;
+  // Step 6 has a confirm button — goNext not used here
+  if (APP.step === 6) return;
+  if (APP.step === 5) { goToStep(6); return; }
+  if (APP.step === 6) { showDone(); return; }
+  goToStep(APP.step + 1);
+}
+
+function syncNextBtn() {
+  const btn = document.getElementById('nextBtn');
+  const retakeBtn = document.getElementById('retakeBtn');
+
+  // Hide/show retake on step 5
+  retakeBtn.style.display = APP.step === 5 ? '' : 'none';
+
+  const labels = {
+    1: 'Choose filter →',
+    2: 'Customise →',
+    3: 'Start shooting →',
+    5: 'Confirm & continue →',
+    6: 'Confirm & print →',
+  };
+  btn.innerHTML = (labels[APP.step] || 'Continue →') +
+    ` <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h10M9 4l4 4-4 4"/></svg>`;
+
+  const disabled = (APP.step === 1 && !APP.format);
+  btn.disabled = disabled;
+}
+
+// ───────────────────────────────────────────
+// STEP 1 — FORMAT
+// ───────────────────────────────────────────
+function pickFormat(f) {
+  APP.format = f;
+  document.getElementById('fc-strip').classList.toggle('selected', f==='strip');
+  document.getElementById('fc-polaroid').classList.toggle('selected', f==='polaroid');
+  syncNextBtn();
+}
+
+// ───────────────────────────────────────────
+// STEP 2 — FILTERS
+// ───────────────────────────────────────────
+function buildFilters() {
+  const grid = document.getElementById('filterGrid');
+  Object.entries(FILTERS).forEach(([key, val]) => {
+    const card = document.createElement('div');
+    card.className = 'filter-card' + (key==='none'?' selected':'');
+    card.id = 'fcard-'+key;
+    card.onclick = () => pickFilter(key);
+    card.innerHTML = `
+      <div class="filter-preview">
+        <video id="fpv-${key}" autoplay muted playsinline style="filter:${val.css}"></video>
+      </div>
+      <div class="filter-label">${val.label}</div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function attachFilterPreviews() {
+  Object.keys(FILTERS).forEach(key => {
+    const v = document.getElementById('fpv-'+key);
+    if (v && APP.stream) v.srcObject = APP.stream;
+  });
+}
+
+function pickFilter(key) {
+  APP.filter = key;
+  document.querySelectorAll('.filter-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('fcard-'+key)?.classList.add('selected');
+  document.getElementById('camVideo').style.filter = FILTERS[key].css;
+}
+
+// ───────────────────────────────────────────
+// STEP 3 — CUSTOMISE
+// ───────────────────────────────────────────
+function buildSwatches() {
+  const row = document.getElementById('swatchRow');
+  SWATCHES.forEach(sw => {
+    const el = document.createElement('div');
+    el.className = 'swatch' + (sw.light?' light-bg':'') + (sw.hex===APP.borderColor?' selected':'');
+    el.style.background = sw.hex;
+    el.title = sw.label;
+    // checkmark color
+    el.style.setProperty('--ck', sw.light?'#888':'rgba(255,255,255,0.7)');
+    el.onclick = () => {
+      APP.borderColor = sw.hex;
+      document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('selected'));
+      el.classList.add('selected');
+      renderLive();
+    };
+    row.appendChild(el);
+  });
+  // default first swatch selected
+  row.children[0]?.classList.add('selected');
+}
+
+function buildEmojis() {
+  const row = document.getElementById('emojiRow');
+  EMOJIS.forEach(e => {
+    const btn = document.createElement('button');
+    btn.className = 'emoji-btn';
+    btn.textContent = e;
+    btn.onclick = () => toggleEmoji(e, btn);
+    row.appendChild(btn);
+  });
+}
+
+function toggleEmoji(e, btn) {
+  const i = APP.emojis.indexOf(e);
+  if (i === -1) {
+    if (APP.emojis.length < 3) { APP.emojis.push(e); btn.classList.add('selected'); }
+  } else {
+    APP.emojis.splice(i,1); btn.classList.remove('selected');
+  }
+  renderLive();
+}
+
+function onCustomChange() {
+  APP.caption = document.getElementById('captionInput').value;
+  renderLive();
+}
+
+// ─── LIVE PREVIEW CANVAS ───
+function renderLive() {
+  APP.caption = document.getElementById('captionInput')?.value || '';
+  const isStrip = APP.format === 'strip';
+
+  // Build design toggle (both formats support custom designs)
+  buildDesignToggle();
+
+  const step3Sub  = document.getElementById('step3Sub');
+  const stdSect   = document.getElementById('standardCustomSection');
+  const swatchRow = document.getElementById('swatchRow');
+
+  if (APP.useCustomDesign) {
+    if (stdSect) stdSect.style.display = 'none';
+    if (step3Sub) step3Sub.textContent = 'Custom design active — no further customisation';
+  } else {
+    if (stdSect) stdSect.style.display = '';
+    if (step3Sub) step3Sub.textContent = 'Border · Caption · Decoration';
+    if (swatchRow) swatchRow.style.display = '';
+  }
+
+  const caption = APP.useCustomDesign ? '' : APP.caption;
+  const emojis  = APP.useCustomDesign ? [] : APP.emojis;
+
+  const c = document.getElementById('liveCanvas');
+  if (!c) return;
+
+  if (APP.useCustomDesign) {
+    const design = getActiveDesign();
+    if (design && design.canvas) {
+      const W = 300, H = isStrip ? 450 : 200;
+      c.width = W; c.height = H;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(design.canvas, 0, 0, W, H);
+    } else {
+      drawPreview(c, isStrip, APP.borderColor, caption, emojis, null, true);
+    }
+  } else {
+    drawPreview(c, isStrip, APP.borderColor, caption, emojis, null, true);
+  }
+}
+
+/*
+ * drawFilmStrip — draws the film reel style composite
+ * Portrait 4×6" split into 2 identical halves
+ * Each half: black film border with sprocket holes, 3 photos stacked, IG handle
+ */
+function drawFilmStrip(canvas, caption, emojis, shots, preview) {
+  const ctx = canvas.getContext('2d');
+  const W   = preview ? 300  : 1248;  // Canon SELPHY CP1300 WS 317 DPI
+  const H   = preview ? 444  : 1847;
+  canvas.width = W; canvas.height = H;
+
+  // If custom design loaded, show it as preview
+  if (CUSTOM_DESIGN_CANVAS && preview) {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
+    ctx.drawImage(CUSTOM_DESIGN_CANVAS, 0, 0, W, H);
+    return;
+  }
+  if (CUSTOM_DESIGN_IMG && preview && !CUSTOM_DESIGN_CANVAS) {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
+    ctx.drawImage(CUSTOM_DESIGN_IMG, 0, 0, W, H);
+    return;
+  }
+
+  // Overall black background
+  ctx.fillStyle = '#141413';
+  ctx.fillRect(0, 0, W, H);
+
+  // Split into 2 columns with a cutting gap
+  const CUT_GAP   = W * 0.04;
+  const HOLE_W    = W * 0.055;
+  const colW      = (W - CUT_GAP) / 2;
+  const innerW    = colW - HOLE_W * 2;  // usable width inside sprocket holes
+  const ROWS      = 3;
+  const IG_H      = H * 0.06;
+  const CAP_H     = (caption || emojis.length) ? H * 0.055 : H * 0.04;
+  const photoAreaH = H - IG_H - CAP_H;
+  const GAP_H     = H * 0.012;
+  const frameH    = (photoAreaH - GAP_H * (ROWS - 1)) / ROWS;
+  const HOLE_H    = frameH * 0.22;
+  const HOLE_R    = HOLE_H * 0.25;
+
+  for (let col = 0; col < 2; col++) {
+    const colX = col === 0 ? 0 : colW + CUT_GAP;
+
+    // ── Sprocket holes (left side of each column)
+    const leftHolesX  = colX;
+    const rightHolesX = colX + colW - HOLE_W;
+    const frameStartY = IG_H;
+
+    for (let row = 0; row < ROWS; row++) {
+      const frameY = frameStartY + row * (frameH + GAP_H);
+      const holeCY = frameY + frameH / 2;
+
+      // Left hole
+      ctx.fillStyle = '#2a2a28';
+      roundRect(ctx, leftHolesX + HOLE_W * 0.15, holeCY - HOLE_H/2, HOLE_W * 0.7, HOLE_H, HOLE_R);
+      ctx.fill();
+
+      // Right hole
+      roundRect(ctx, rightHolesX + HOLE_W * 0.15, holeCY - HOLE_H/2, HOLE_W * 0.7, HOLE_H, HOLE_R);
+      ctx.fill();
+
+      // ── Photo frame
+      const photoX = colX + HOLE_W;
+      const photoY = frameY;
+      if (shots && shots[row]) {
+        const img = new Image();
+        img.src = shots[row];
+        if (img.complete && img.naturalWidth > 0) {
+          drawFilmFrame(ctx, img, photoX, photoY, innerW, frameH);
+        } else {
+          ctx.fillStyle = '#2a2a28';
+          ctx.fillRect(photoX, photoY, innerW, frameH);
+        }
+      } else {
+        ctx.fillStyle = '#2a2a28';
+        ctx.fillRect(photoX, photoY, innerW, frameH);
+        if (!preview) {
+          ctx.fillStyle = '#555';
+          ctx.font = `${frameH*0.1}px "Courier New", monospace`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('Photo '+(row+1), photoX+innerW/2, photoY+frameH/2);
+        }
+      }
+    }
+
+    // ── Instagram handle bar (top of each column) — clipped to column width
+    ctx.save();
+    ctx.beginPath(); ctx.rect(colX, 0, colW, IG_H); ctx.clip();
+
+    const handleCX = colX + colW / 2;
+    const icoCY    = IG_H * 0.5;
+    const icoR     = IG_H * 0.20;
+    const fontSize = IG_H * 0.36;
+
+    ctx.font = `bold ${fontSize}px Georgia, serif`;
+    const textW = ctx.measureText('@kepalakotak.kl').width;
+    const totalW = icoR * 2.2 + 6 + textW;
+    const startX = handleCX - totalW / 2;
+    const icoX   = startX + icoR;
+
+    // Instagram icon
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth   = preview ? 0.8 : 2;
+    ctx.beginPath(); ctx.arc(icoX, icoCY, icoR, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(icoX, icoCY, icoR*0.52, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(icoX + icoR*0.62, icoCY - icoR*0.62, icoR*0.14, 0, Math.PI*2);
+    ctx.fillStyle = '#ffffff'; ctx.fill();
+
+    // Handle text
+    ctx.fillStyle  = '#ffffff';
+    ctx.textAlign  = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('@kepalakotak.kl', icoX + icoR + 6, icoCY);
+
+    ctx.restore();
+
+    // ── Caption / emoji at bottom
+    if (caption || emojis.length) {
+      const cy = H - CAP_H / 2;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(colX, H - CAP_H, colW, CAP_H); ctx.clip();
+      const light = false; // film bg is always dark
+      const ink   = '#f0ede3';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (caption) {
+        ctx.fillStyle = ink;
+        ctx.font = `italic ${CAP_H * 0.48}px Georgia, serif`;
+        ctx.fillText(caption, colX + colW/2, cy - (emojis.length ? CAP_H*0.28 : 0));
+      }
+      if (emojis.length) {
+        ctx.font = `${CAP_H * 0.52}px serif`;
+        const total = emojis.length * CAP_H * 0.6;
+        emojis.forEach((e, i) => {
+          ctx.fillText(e, colX + colW/2 - total/2 + i*CAP_H*0.6 + CAP_H*0.3,
+            cy + (caption ? CAP_H*0.3 : 0));
+        });
+      }
+      ctx.restore();
+    }
+  }
+
+  // Dashed cut line
+  ctx.save();
+  ctx.setLineDash([5, 4]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = preview ? 1 : 2;
+  ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
+  ctx.restore();
+}
+
+function drawFilmStripWithImages(canvas, caption, emojis, imgs) {
+  const ctx = canvas.getContext('2d');
+  const W   = canvas.width;
+  const H   = canvas.height;
+
+  if (CUSTOM_DESIGN_CANVAS && CUSTOM_DESIGN_HOLES.length > 0) {
+    const halfW = W / 2;
+
+    // 1) White background
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, H);
+
+    // 2) Draw photos into hole positions for both columns
+    for (let col = 0; col < 2; col++) {
+      const offsetX = col * halfW;
+      CUSTOM_DESIGN_HOLES.forEach((hole, idx) => {
+        const img = imgs[idx];
+        if (!img) return;
+        // Scale hole coords to canvas size (design covers one column = halfW wide)
+        const hx = offsetX + hole.x * halfW;
+        const hy = hole.y * H;
+        const hw = hole.w * halfW;
+        const hh = hole.h * H;
+        drawFilmFrame(ctx, img, hx, hy, hw, hh);
+      });
+    }
+
+    // 3) Draw overlay on top
+    // CUSTOM_DESIGN_CANVAS has holes already made transparent during loadCustomDesign
+    // Scale the single-column design to fill each half
+    ctx.drawImage(CUSTOM_DESIGN_CANVAS, 0,     0, halfW, H);
+    ctx.drawImage(CUSTOM_DESIGN_CANVAS, halfW, 0, halfW, H);
+
+    // 4) Caption
+    if (caption || emojis.length) {
+      const CAP_H = H * 0.04;
+      for (let col = 0; col < 2; col++) {
+        const cx = col === 0 ? halfW * 0.5 : halfW * 1.5;
+        const cy = H - CAP_H;
+        ctx.save();
+        ctx.beginPath(); ctx.rect(col * halfW, H - CAP_H * 2.5, halfW, CAP_H * 2.5); ctx.clip();
+        drawCaptionEmoji(ctx, cx, cy, CAP_H * 1.4, caption, emojis, '#ffffff');
+        ctx.restore();
+      }
+    }
+
+    // 5) Cut line
+    ctx.save();
+    ctx.setLineDash([8, 6]);
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
+    ctx.restore();
+
+  } else {
+    // ── BUILT-IN drawn film strip (no custom design uploaded)
+    drawFilmStrip(canvas, caption, emojis, null, false);
+    const CUT_GAP    = W * 0.04;
+    const HOLE_W     = W * 0.055;
+    const colW       = (W - CUT_GAP) / 2;
+    const innerW     = colW - HOLE_W * 2;
+    const IG_H       = H * 0.06;
+    const CAP_H      = (caption || emojis.length) ? H * 0.055 : H * 0.04;
+    const photoAreaH = H - IG_H - CAP_H;
+    const GAP_H      = H * 0.012;
+    const frameH     = (photoAreaH - GAP_H * 2) / 3;
+    for (let col = 0; col < 2; col++) {
+      const colX = col === 0 ? 0 : colW + CUT_GAP;
+      for (let row = 0; row < 3; row++) {
+        const img = imgs[row];
+        if (img) drawFilmFrame(ctx, img, colX + HOLE_W, IG_H + row*(frameH + GAP_H), innerW, frameH);
+      }
+    }
+  }
+
+  // Mirror to review canvas
+  const rev   = document.getElementById('reviewCanvas');
+  const maxW  = rev.parentElement.clientWidth - 56;
+  const scale = Math.min(1, maxW / W);
+  rev.width   = Math.round(W * scale);
+  rev.height  = Math.round(H * scale);
+  rev.getContext('2d').drawImage(canvas, 0, 0, rev.width, rev.height);
+}
+
+// Cover-crop draw for film frames (no border radius needed)
+function drawFilmFrame(ctx, img, x, y, w, h) {
+  const iw = img.naturalWidth  || img.width;
+  const ih = img.naturalHeight || img.height;
+  if (!iw || !ih) return;
+  const frameRatio = w / h;
+  const imgRatio   = iw / ih;
+  let sx, sy, sw, sh;
+  if (imgRatio > frameRatio) {
+    sh = ih; sw = ih * frameRatio; sx = (iw - sw) / 2; sy = 0;
+  } else {
+    sw = iw; sh = iw / frameRatio; sx = 0; sy = (ih - sh) / 2;
+  }
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  ctx.restore();
+}
+
+// Helper: draw rounded rect path
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+/*
+ * drawPreview — draws the 4×6 composite on any canvas.
+ *
+ * isStrip  : portrait strip  → 3 shots × 2 columns  (4"W × 6"H)
+ * !isStrip : polaroid        → 1 shot  × 2 columns  (6"W × 4"H)
+ *
+ * shots    : array of dataURL (null for placeholder)
+ * preview  : true = small live preview, false = full composite
+ */
+function drawPreview(canvas, isStrip, borderColor, caption, emojis, shots, preview) {
+  const ctx = canvas.getContext('2d');
+
+  // Canon SELPHY CP1300 WS — printable area 374x553.67 hundredths-inch at 300 DPI
+  // Portrait  (Photo Strip): 1122 x 1661 px
+  // Landscape (Polaroid):    1661 x 1122 px
+  const W = isStrip ? (preview ? 300 : 1248) : (preview ? 444 : 1847);
+  const H = isStrip ? (preview ? 444 : 1847) : (preview ? 202 : 1248);
+
+  canvas.width  = W;
+  canvas.height = H;
+
+  const PAD      = W * 0.045;   // outer border padding
+  const ROW_GAP  = W * 0.015;   // small gap between rows (strip only)
+  const CUT_GAP  = W * 0.075;   // centre gap for cutting
+
+  // Always reserve a bottom strip — for caption text if strip, for polaroid look if polaroid
+  // This space is ALWAYS present regardless of whether caption/emoji is used
+  const BOT_STRIP  = H * 0.10;
+  const useCaption = caption || emojis.length;
+  const CAP_H      = useCaption ? Math.max(BOT_STRIP, H * 0.09) : BOT_STRIP;
+
+  ctx.fillStyle = borderColor;
+  ctx.fillRect(0,0,W,H);
+
+  if (isStrip) {
+    const cols  = 2;
+    const rows  = 3;
+    const colW  = (W - PAD*2 - CUT_GAP) / cols;
+
+    // Instagram header bar at top of each half
+    const IG_H  = H * 0.07;
+    const frameH = colW * 0.72;
+    const startY = PAD + IG_H;
+
+    for (let col=0; col<cols; col++) {
+      const colX = PAD + col*(colW + CUT_GAP);
+      // Draw IG header for this column
+      drawIGHeader(ctx, colX, PAD, colW, IG_H, borderColor, preview);
+      // Draw photo frames
+      for (let row=0; row<rows; row++) {
+        const x = colX;
+        const y = startY + row*(frameH + ROW_GAP);
+        drawFrame(ctx, x, y, colW, frameH, shots ? shots[row] : null, preview, row);
+      }
+    }
+
+    // Caption clipped to each column
+    if (useCaption) {
+      const cy  = H - CAP_H/2;
+      const cx0 = PAD + colW/2;
+      const cx1 = PAD + CUT_GAP + colW + colW/2;
+      ctx.save(); ctx.beginPath(); ctx.rect(PAD, H-CAP_H, colW, CAP_H); ctx.clip();
+      drawCaptionEmoji(ctx, cx0, cy, CAP_H, caption, emojis, borderColor);
+      ctx.restore();
+      ctx.save(); ctx.beginPath(); ctx.rect(PAD+CUT_GAP+colW, H-CAP_H, colW, CAP_H); ctx.clip();
+      drawCaptionEmoji(ctx, cx1, cy, CAP_H, caption, emojis, borderColor);
+      ctx.restore();
+    }
+
+  } else {
+    const POL_BOT = H * 0.22;
+    const IG_H    = H * 0.10;
+    const frameW  = (W - PAD*2 - CUT_GAP) / 2;
+    const frameH  = H - PAD - POL_BOT - IG_H;
+
+    for (let col=0; col<2; col++) {
+      const x = PAD + col*(frameW + CUT_GAP);
+      drawIGHeader(ctx, x, PAD, frameW, IG_H, borderColor, preview);
+      drawFrame(ctx, x, PAD + IG_H, frameW, frameH, shots ? shots[0] : null, preview, 0);
+    }
+
+    // Caption in polaroid bottom strip
+    if (useCaption) {
+      const cy  = H - POL_BOT/2;
+      const cx0 = PAD + frameW/2;
+      const cx1 = PAD + CUT_GAP + frameW + frameW/2;
+      ctx.save(); ctx.beginPath(); ctx.rect(PAD, H-POL_BOT, frameW, POL_BOT); ctx.clip();
+      drawCaptionEmoji(ctx, cx0, cy, POL_BOT, caption, emojis, borderColor);
+      ctx.restore();
+      ctx.save(); ctx.beginPath(); ctx.rect(PAD+CUT_GAP+frameW, H-POL_BOT, frameW, POL_BOT); ctx.clip();
+      drawCaptionEmoji(ctx, cx1, cy, POL_BOT, caption, emojis, borderColor);
+      ctx.restore();
+    }
+  }
+
+  // Draw a faint dashed cut-line in the centre
+  const cx = W / 2;
+  ctx.save();
+  ctx.setLineDash([6, 5]);
+  ctx.strokeStyle = isLight(borderColor) ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = preview ? 1 : 2;
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
+  ctx.restore();
+}
+
+// Instagram header — logo + handle, drawn at top of each half
+function drawIGHeader(ctx, x, y, w, h, bgColor, preview) {
+  const light = isLight(bgColor);
+  const ink   = light ? '#222222' : '#f0ede3';
+
+  ctx.save();
+  // Clip strictly to this column's header area so nothing bleeds out
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+
+  const fontSize  = h * 0.36;
+  const iconSize  = h * 0.48;
+  const cy        = y + h / 2;
+
+  // Measure text first to properly centre icon+text block
+  ctx.font = `600 ${fontSize}px Georgia, serif`;
+  const textW  = ctx.measureText('@kepalakotak.kl').width;
+  const gap    = preview ? 4 : 10;
+  const totalW = iconSize + gap + textW;
+  const startX = x + (w - totalW) / 2;
+
+  // ── Instagram icon (rounded square camera)
+  const iconX = startX;
+  const iconY = cy - iconSize / 2;
+  const r     = iconSize * 0.22;
+
+  ctx.strokeStyle = ink;
+  ctx.lineWidth   = preview ? 1 : 2.5;
+
+  ctx.beginPath();
+  ctx.moveTo(iconX + r, iconY);
+  ctx.lineTo(iconX + iconSize - r, iconY);
+  ctx.quadraticCurveTo(iconX + iconSize, iconY, iconX + iconSize, iconY + r);
+  ctx.lineTo(iconX + iconSize, iconY + iconSize - r);
+  ctx.quadraticCurveTo(iconX + iconSize, iconY + iconSize, iconX + iconSize - r, iconY + iconSize);
+  ctx.lineTo(iconX + r, iconY + iconSize);
+  ctx.quadraticCurveTo(iconX, iconY + iconSize, iconX, iconY + iconSize - r);
+  ctx.lineTo(iconX, iconY + r);
+  ctx.quadraticCurveTo(iconX, iconY, iconX + r, iconY);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Lens circle
+  ctx.beginPath();
+  ctx.arc(iconX + iconSize/2, iconY + iconSize/2, iconSize * 0.22, 0, Math.PI*2);
+  ctx.stroke();
+
+  // Dot
+  ctx.fillStyle = ink;
+  ctx.beginPath();
+  ctx.arc(iconX + iconSize*0.78, iconY + iconSize*0.22, iconSize*0.07, 0, Math.PI*2);
+  ctx.fill();
+
+  // ── Handle text
+  ctx.fillStyle    = ink;
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('@kepalakotak.kl', startX + iconSize + gap, cy);
+
+  ctx.restore();
+}
+
+function drawFrame(ctx, x, y, w, h, imgSrc, preview, idx) {
+  if (imgSrc) {
+    const img = new Image();
+    img.src = imgSrc;
+    if (img.complete && img.naturalWidth > 0) {
+      // "object-fit: cover" — crop to fill, never skew
+      const iw = img.naturalWidth;
+      const ih = img.naturalHeight;
+      const frameRatio = w / h;
+      const imgRatio   = iw / ih;
+
+      let sx, sy, sw, sh;
+      if (imgRatio > frameRatio) {
+        // Image is wider than frame → crop left/right
+        sh = ih;
+        sw = ih * frameRatio;
+        sx = (iw - sw) / 2;
+        sy = 0;
+      } else {
+        // Image is taller than frame → crop top/bottom
+        sw = iw;
+        sh = iw / frameRatio;
+        sx = 0;
+        sy = (ih - sh) / 2;
+      }
+
+      // Clip to frame bounds then draw
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+      ctx.restore();
+    } else {
+      // Image not yet loaded — draw dark placeholder
+      ctx.fillStyle = '#1a1a18';
+      ctx.fillRect(x, y, w, h);
+    }
+  } else {
+    // Placeholder slot
+    const r = preview ? 4 : 12;
+    ctx.fillStyle = 'rgba(176,174,165,0.22)';
+    ctx.beginPath(); ctx.roundRect(x,y,w,h,r); ctx.fill();
+    if (!preview) {
+      ctx.fillStyle = 'rgba(176,174,165,0.5)';
+      ctx.font = `${h*0.08}px "Courier New", monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('Photo '+(idx+1), x+w/2, y+h/2);
+    }
+  }
+}
+
+function drawCaptionEmoji(ctx, cx, cy, areaH, caption, emojis, bgColor) {
+  const light = isLight(bgColor);
+  const ink   = light ? '#333333' : '#f0ede3';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  if (caption) {
+    ctx.fillStyle = ink;
+    ctx.font = `italic 500 ${areaH*0.32}px Georgia, serif`;
+    ctx.fillText(caption, cx, cy - (emojis.length ? areaH*0.28 : 0));
+  }
+  if (emojis.length) {
+    ctx.font = `${areaH*0.38}px serif`;
+    const total = emojis.length * areaH*0.45;
+    emojis.forEach((e,i)=>{
+      ctx.fillText(e, cx - total/2 + i*(areaH*0.45) + areaH*0.22, cy + (caption ? areaH*0.3 : 0));
+    });
+  }
+}
+
+function isLight(hex) {
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return (r*299+g*587+b*114)/1000 > 145;
+}
+
+// ───────────────────────────────────────────
+// STEP 4 — SHOOT
+// ───────────────────────────────────────────
+function initShoot() {
+  APP.shots   = [];
+  APP.shootIdx= 0;
+  APP.capturing= false;
+  const total = APP.format==='polaroid' ? 1 : 3;
+
+  document.getElementById('pillTot').textContent = total;
+  document.getElementById('pillCur').textContent = '0';
+  document.getElementById('intFill').style.width = '0%';
+  document.getElementById('shutterBtn').className = 'shutter';
+
+  // Build thumb slots
+  const wrap = document.getElementById('vfThumbs');
+  wrap.innerHTML = '';
+  for (let i=0;i<total;i++){
+    const d = document.createElement('div');
+    d.className = 'vf-thumb empty';
+    d.id = 'vth-'+i;
+    wrap.appendChild(d);
+  }
+
+  setShootUI('Tap the shutter when ready', `Photo 1 of ${total}`);
+  document.getElementById('camVideo').style.filter = FILTERS[APP.filter].css;
+}
+
+function setShootUI(status, next) {
+  document.getElementById('shootStatus').textContent = status;
+  document.getElementById('shootNext').textContent   = next;
+}
+
+function handleShutter() {
+  if (APP.capturing) return;
+
+  // In mock cam mode, iPad camera works without server connection
+  if (!MOCK_CAM && !WS_READY) {
+    setShootUI('⚠ Not connected to laptop', 'Check WiFi and server');
+    return;
+  }
+
+  const total = APP.format==='polaroid' ? 1 : 3;
+  if (APP.shootIdx >= total) return;
+
+  APP.capturing = true;
+  document.getElementById('shutterBtn').className = 'shutter counting';
+
+  countdown(3, () => triggerDSLR());
+}
+
+function triggerDSLR() {
+  // Flash effect
+  const fl = document.getElementById('flashCover');
+  fl.classList.add('flash');
+  setTimeout(()=>fl.classList.remove('flash'), 150);
+
+  // ── MOCK CAM MODE: capture directly from iPad camera video feed
+  if (MOCK_CAM) {
+    const video = document.getElementById('camVideo');
+    const cap   = document.getElementById('captureCanvas');
+    const W = video.videoWidth  || 640;
+    const H = video.videoHeight || 480;
+    cap.width = W; cap.height = H;
+    const ctx = cap.getContext('2d');
+
+    // Draw raw mirrored frame — NO ctx.filter (broken on Safari iOS)
+    // Filter is applied via pixel manipulation in onPhotoReceived
+    ctx.save();
+    ctx.translate(W, 0); ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, W, H);
+    ctx.restore();
+
+    const dataUrl = cap.toDataURL('image/jpeg', 0.93);
+    onPhotoReceived(dataUrl, APP.shootIdx, APP.filter);
+    return;
+  }
+
+  // ── REAL MODE: send to laptop, wait for DSLR photo back via WebSocket
+  setShootUI('DSLR firing…', `Photo ${APP.shootIdx + 1} of ${APP.format === 'polaroid' ? 1 : 3}`);
+  WS.send(JSON.stringify({
+    type:      'capture',
+    shotIndex: APP.shootIdx,
+    filter:    APP.filter,
+  }));
+}
+
+// Called when laptop sends back the DSLR photo
+function onPhotoReceived(dataUrl, shotIndex, filter) {
+  console.log('[CAPTURE] Photo received for shot', shotIndex);
+
+  const img = new Image();
+  img.onload = () => {
+    const cap = document.getElementById('captureCanvas');
+    cap.width  = img.naturalWidth;
+    cap.height = img.naturalHeight;
+    const ctx  = cap.getContext('2d');
+
+    // Draw raw image first
+    ctx.drawImage(img, 0, 0);
+
+    // Apply filter via pixel manipulation (Safari-safe, ctx.filter unreliable on iOS)
+    applyFilterToCanvas(ctx, cap.width, cap.height, filter);
+
+    const filteredUrl = cap.toDataURL('image/jpeg', 0.93);
+    APP.shots[shotIndex] = filteredUrl;
+
+    // Update thumb
+    const th = document.getElementById('vth-'+shotIndex);
+    if (th) {
+      th.className = 'vf-thumb';
+      th.innerHTML = `<img src="${filteredUrl}" alt="">`;
+    }
+
+    APP.shootIdx = shotIndex + 1;
+    document.getElementById('pillCur').textContent = APP.shootIdx;
+
+    const total = APP.format==='polaroid' ? 1 : 3;
+    if (APP.shootIdx >= total) {
+      document.getElementById('shutterBtn').className = 'shutter wait';
+      setShootUI('All done! Preparing preview…', '');
+      setTimeout(()=>{
+        document.getElementById('shootScreen').classList.remove('active');
+        document.getElementById('bottomBar').style.display = '';
+        APP.step = 4;
+        goToStep(5);
+      }, 900);
+    } else {
+      const next = APP.shootIdx + 1;
+      setShootUI('Next photo in…', `Photo ${next} of ${total}`);
+      animInterval(3000, () => {
+        APP.capturing = false;
+        document.getElementById('shutterBtn').className = 'shutter';
+        setShootUI('Tap the shutter when ready', `Photo ${next} of ${total}`);
+      });
+    }
+  };
+  img.src = dataUrl;
+}
+
+// Apply filter via pixel manipulation — works on Safari/iOS where ctx.filter fails
+function applyFilterToCanvas(ctx, w, h, filterKey) {
+  if (!filterKey || filterKey === 'none') return;
+
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const d = imageData.data;
+
+  for (let i = 0; i < d.length; i += 4) {
+    let r = d[i], g = d[i+1], b = d[i+2];
+
+    if (filterKey === 'mono' || filterKey === 'noir') {
+      // Greyscale
+      const grey = r*0.299 + g*0.587 + b*0.114;
+      r = g = b = filterKey === 'noir'
+        ? clamp(grey * 0.85 * 1.1)   // noir: darker + more contrast
+        : clamp(grey * 1.06);
+
+    } else if (filterKey === 'sepia') {
+      const nr = clamp(r*0.393 + g*0.769 + b*0.189);
+      const ng = clamp(r*0.349 + g*0.686 + b*0.168);
+      const nb = clamp(r*0.272 + g*0.534 + b*0.131);
+      r = nr; g = ng; b = nb;
+
+    } else if (filterKey === 'vivid') {
+      // Boost saturation + contrast
+      const grey = r*0.299 + g*0.587 + b*0.114;
+      r = clamp((r - grey) * 1.9 + grey * 1.05);
+      g = clamp((g - grey) * 1.9 + grey * 1.05);
+      b = clamp((b - grey) * 1.9 + grey * 1.05);
+
+    } else if (filterKey === 'mist') {
+      // Desaturate + blue shift + brighten
+      const grey = r*0.299 + g*0.587 + b*0.114;
+      r = clamp((r - grey) * 0.8 + grey * 1.1 + 5);
+      g = clamp((g - grey) * 0.8 + grey * 1.1 + 8);
+      b = clamp((b - grey) * 0.8 + grey * 1.1 + 20);
+
+    } else if (filterKey === 'dusk') {
+      // Warm orange shift
+      r = clamp(r * 1.06 + 10);
+      g = clamp(g * 1.02);
+      b = clamp(b * 0.88);
+
+    } else if (filterKey === 'fade') {
+      // Lift blacks, reduce contrast
+      r = clamp(r * 0.85 + 30);
+      g = clamp(g * 0.85 + 30);
+      b = clamp(b * 0.85 + 30);
+
+    } else if (filterKey === 'chrome') {
+      // High contrast + saturate
+      const grey = r*0.299 + g*0.587 + b*0.114;
+      r = clamp((r - grey) * 1.55 + grey * 1.08);
+      g = clamp((g - grey) * 1.55 + grey * 1.08);
+      b = clamp((b - grey) * 1.55 + grey * 1.08);
+    }
+
+    d[i] = r; d[i+1] = g; d[i+2] = b;
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+// Returns a new Image with filter applied — used for polaroid composite
+function applyFilterToImage(img, filterKey) {
+  if (!img || !filterKey || filterKey === 'none') return img;
+  const offscreen = document.createElement('canvas');
+  offscreen.width  = img.naturalWidth  || img.width;
+  offscreen.height = img.naturalHeight || img.height;
+  const ctx = offscreen.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  applyFilterToCanvas(ctx, offscreen.width, offscreen.height, filterKey);
+  const result = new Image();
+  result.src = offscreen.toDataURL('image/jpeg', 0.93);
+  return result;
+}
+
+function clamp(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+
+// Legacy — now replaced by onPhotoReceived
+function doCapture() { triggerDSLR(); }
+
+function countdown(n, cb) {
+  const el = document.getElementById('cdNum');
+  let c = n;
+  (function tick(){
+    el.textContent = c===0 ? '✦' : c;
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
+    if (c===0){ setTimeout(cb, 650); return; }
+    c--;
+    setTimeout(tick, 900);
+  })();
+}
+
+function animInterval(ms, cb) {
+  const fill  = document.getElementById('intFill');
+  const start = Date.now();
+  const raf   = () => {
+    const pct = Math.min(100, ((Date.now()-start)/ms)*100);
+    fill.style.width = pct+'%';
+    if (pct < 100) requestAnimationFrame(raf);
+    else { fill.style.width='0%'; cb(); }
+  };
+  requestAnimationFrame(raf);
+}
+
+function doRetake() {
+  APP.shots = [];
+  APP.shootIdx = 0;
+  APP.capturing = false;
+  // Show shoot screen
+  document.getElementById('step5')?.classList.remove('active');
+  document.getElementById('step6')?.classList.remove('active');
+  document.getElementById('bottomBar').style.display = 'none';
+  APP.step = 4;
+  document.getElementById('shootScreen').classList.add('active');
+  initShoot();
+  document.getElementById('progressBar').style.width = STEP_PCTS[4]+'%';
+  document.getElementById('tbStep').textContent = 'Step 4 of 6';
+  document.getElementById('backBtn').classList.remove('hidden');
+}
+
+// ───────────────────────────────────────────
+// STEP 5 — REVIEW  (build composite)
+// ───────────────────────────────────────────
+function buildReview() {
+  const comp    = document.getElementById('compositeCanvas');
+  const isStrip = APP.format === 'strip';
+  const caption = APP.useCustomDesign ? '' : APP.caption;
+  const emojis  = APP.useCustomDesign ? [] : APP.emojis;
+  const design  = getActiveDesign(); // null if not using custom design
+
+  // Draw placeholder
+  if (design) {
+    // Custom design placeholder — white bg with overlay
+    const W = isStrip ? 1248 : 1847;
+    const H = isStrip ? 1847 : 1248;
+    comp.width = W; comp.height = H;
+    const ctx = comp.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
+    const halfW = W/2;
+    ctx.drawImage(design.canvas, 0,     0, halfW, H);
+    ctx.drawImage(design.canvas, halfW, 0, halfW, H);
+  } else {
+    drawPreview(comp, isStrip, APP.borderColor, caption, emojis, null, false);
+  }
+
+  const imgs = APP.shots.map(src => {
+    const i = new Image(); i.src = src; return i;
+  });
+  const allLoaded = () => imgs.every(i => i.complete && i.naturalWidth > 0);
+
+  const tryDraw = () => {
+    if (!allLoaded()) { setTimeout(tryDraw, 80); return; }
+    if (design) {
+      drawCustomDesignWithImages(comp, design, imgs, caption, emojis);
+    } else {
+      drawPreviewWithImages(comp, isStrip, APP.borderColor, caption, emojis, imgs);
+    }
+  };
+  tryDraw();
+}
+
+// Cover-crop draw: fills dest rect without skewing, crops from centre
+// Generic custom design compositor — works for strip, polaroid, any format
+// design = { canvas (transparent-hole overlay), holes [{x,y,w,h}] }
+function drawCustomDesignWithImages(canvas, design, imgs, caption, emojis) {
+  const ctx  = canvas.getContext('2d');
+  const W    = canvas.width;
+  const H    = canvas.height;
+  const halfW = W / 2;
+
+  // 1) White background
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, H);
+
+  // 2) Photos into holes for both columns
+  for (let col = 0; col < 2; col++) {
+    const offsetX = col * halfW;
+    design.holes.forEach((hole, idx) => {
+      const img = imgs[idx];
+      if (!img) return;
+      drawFilmFrame(ctx, img,
+        offsetX + hole.x * halfW,
+        hole.y * H,
+        hole.w * halfW,
+        hole.h * H
+      );
+    });
+  }
+
+  // 3) Overlay on top (holes are transparent)
+  ctx.drawImage(design.canvas, 0,     0, halfW, H);
+  ctx.drawImage(design.canvas, halfW, 0, halfW, H);
+
+  // 4) Cut line
+  ctx.save();
+  ctx.setLineDash([8, 6]);
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
+  ctx.restore();
+
+  // 5) Mirror to review canvas
+  const rev   = document.getElementById('reviewCanvas');
+  const maxW  = rev.parentElement.clientWidth - 56;
+  const scale = Math.min(1, maxW / W);
+  rev.width   = Math.round(W * scale);
+  rev.height  = Math.round(H * scale);
+  rev.getContext('2d').drawImage(canvas, 0, 0, rev.width, rev.height);
+}
+
+function drawImageCover(ctx, img, x, y, w, h) {
+  const iw = img.naturalWidth  || img.width;
+  const ih = img.naturalHeight || img.height;
+  if (!iw || !ih) return;
+
+  const frameRatio = w / h;
+  const imgRatio   = iw / ih;
+
+  let sx, sy, sw, sh;
+  if (imgRatio > frameRatio) {
+    sh = ih; sw = ih * frameRatio;
+    sx = (iw - sw) / 2; sy = 0;
+  } else {
+    sw = iw; sh = iw / frameRatio;
+    sx = 0; sy = (ih - sh) / 2;
+  }
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  ctx.restore();
+}
+
+function drawPreviewWithImages(canvas, isStrip, borderColor, caption, emojis, imgs) {
+  const ctx = canvas.getContext('2d');
+  const W   = isStrip ? 1248 : 1847;
+  const H   = isStrip ? 1847 : 1248;
+  canvas.width=W; canvas.height=H;
+
+  const PAD     = W*0.045;
+  const ROW_GAP = W*0.015;
+  const CUT_GAP = W*0.075;
+
+  const BOT_STRIP  = H*0.10;
+  const useCaption = caption || emojis.length;
+  const CAP_H      = useCaption ? Math.max(BOT_STRIP, H*0.09) : BOT_STRIP;
+
+  ctx.fillStyle = borderColor;
+  ctx.fillRect(0,0,W,H);
+
+  if (isStrip) {
+    const cols=2, rows=3;
+    const colW=(W-PAD*2-CUT_GAP)/cols;
+    const IG_H  = H * 0.07;
+    const frameH = colW * 0.72;
+    const startY = PAD + IG_H;
+
+    for(let col=0;col<cols;col++){
+      const colX = PAD+col*(colW+CUT_GAP);
+      drawIGHeader(ctx, colX, PAD, colW, IG_H, borderColor, false);
+      for(let row=0;row<rows;row++){
+        const x=colX, y=startY+row*(frameH+ROW_GAP);
+        const img=imgs[row];
+        if(img) drawImageCover(ctx, img, x, y, colW, frameH);
+      }
+    }
+    if(useCaption){
+      const cy=H-CAP_H/2;
+      const cx0=PAD+colW/2;
+      const cx1=PAD+CUT_GAP+colW+colW/2;
+      ctx.save(); ctx.beginPath(); ctx.rect(PAD, H-CAP_H, colW, CAP_H); ctx.clip();
+      drawCaptionEmoji(ctx,cx0,cy,CAP_H,caption,emojis,borderColor);
+      ctx.restore();
+      ctx.save(); ctx.beginPath(); ctx.rect(PAD+CUT_GAP+colW, H-CAP_H, colW, CAP_H); ctx.clip();
+      drawCaptionEmoji(ctx,cx1,cy,CAP_H,caption,emojis,borderColor);
+      ctx.restore();
+    }
+  } else {
+    const POL_BOT=H*0.22;
+    const IG_H   =H*0.10;
+    const frameW=(W-PAD*2-CUT_GAP)/2;
+    const frameH=H-PAD-POL_BOT-IG_H;
+
+    for(let col=0;col<2;col++){
+      const x=PAD+col*(frameW+CUT_GAP);
+      drawIGHeader(ctx, x, PAD, frameW, IG_H, borderColor, false);
+      if(imgs[0]) drawImageCover(ctx, imgs[0], x, PAD+IG_H, frameW, frameH);
+    }
+
+    // Caption in polaroid bottom strip
+    if(useCaption){
+      const cy  = H - POL_BOT/2;
+      const cx0 = PAD + frameW/2;
+      const cx1 = PAD + CUT_GAP + frameW + frameW/2;
+      ctx.save(); ctx.beginPath(); ctx.rect(PAD, H-POL_BOT, frameW, POL_BOT); ctx.clip();
+      drawCaptionEmoji(ctx,cx0,cy,POL_BOT,caption,emojis,borderColor);
+      ctx.restore();
+      ctx.save(); ctx.beginPath(); ctx.rect(PAD+CUT_GAP+frameW, H-POL_BOT, frameW, POL_BOT); ctx.clip();
+      drawCaptionEmoji(ctx,cx1,cy,POL_BOT,caption,emojis,borderColor);
+      ctx.restore();
+    }
+  }
+
+  // Dashed cut-line in the centre
+  const cx = W/2;
+  ctx.save();
+  ctx.setLineDash([8,6]);
+  ctx.strokeStyle = isLight(borderColor) ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,H); ctx.stroke();
+  ctx.restore();
+
+  // Mirror to review canvas
+  const rev = document.getElementById('reviewCanvas');
+  const maxW = rev.parentElement.clientWidth - 56;
+  const scale = Math.min(1, maxW / W);
+  rev.width  = Math.round(W*scale);
+  rev.height = Math.round(H*scale);
+  rev.getContext('2d').drawImage(canvas, 0,0, rev.width, rev.height);
+}
+
+// ───────────────────────────────────────────
+// STEP 6 — OUTPUT
+// ───────────────────────────────────────────
+function confirmAndPrint() {
+  APP.outputMode = 'both'; // always print + digital
+  showDone();
+}
+
+function pickOutput(mode) {
+  APP.outputMode = mode;
+  document.getElementById('oc-print').classList.toggle('selected', mode==='print');
+  document.getElementById('oc-both').classList.toggle('selected', mode==='both');
+  syncNextBtn();
+}
+
+// ───────────────────────────────────────────
+// DONE — real print + Drive upload
+// ───────────────────────────────────────────
+function setDriveBadge(html) {
+  const el = document.getElementById('driveBadge');
+  if (el) el.innerHTML = html;
+}
+
+async function showDone() {
+  document.getElementById('step6').classList.remove('active');
+  document.getElementById('bottomBar').style.display = 'none';
+  document.getElementById('progressBar').style.width = '100%';
+  document.getElementById('tbStep').textContent = 'Complete!';
+  document.getElementById('backBtn').classList.add('hidden');
+  document.getElementById('doneScreen').classList.add('active');
+
+  // Small delay to ensure DOM is visible before manipulating
+  await new Promise(r => setTimeout(r, 50));
+
+  document.getElementById('queueNumDisplay').textContent = '…';
+  document.getElementById('queuePosSub').textContent     = 'Sending to printer…';
+
+  setDriveBadge(`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Uploading to Google Drive…`);
+
+  const comp     = document.getElementById('compositeCanvas');
+  const imageB64 = comp.toDataURL('image/png');
+  const filename  = `kepalakotak_${Date.now()}.png`;
+
+  try {
+    const res = await fetch('/print', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image:      imageB64,
+        outputMode: 'both',
+        filename,
+        format:     APP.format,
+        sessionId:  APP.sessionId,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (data.ok) {
+      if (data.queueNumber) {
+        APP.queueNumber = data.queueNumber;
+        document.getElementById('queueNumDisplay').textContent = '#' + data.queueNumber;
+        updateQueuePosition(data.queueNumber);
+      }
+
+      if (data.driveUrl) {
+        drawQRFromUrl(data.driveUrl);
+        setDriveBadge(`
+          <svg width="16" height="16" viewBox="0 0 24 24">
+            <path d="M4.5 20L8.5 13H20.5L16.5 20H4.5Z" fill="#34A853"/>
+            <path d="M1 14L7 4H13L7 14H1Z" fill="#4285F4"/>
+            <path d="M13 4L20.5 13L14.5 20L7 4H13Z" fill="#FBBC05"/>
+          </svg>
+          Saved to Google Drive ✓`);
+      } else {
+        // Drive not configured — show placeholder QR
+        drawQR();
+        setDriveBadge(`
+          <svg width="16" height="16" viewBox="0 0 24 24">
+            <path d="M4.5 20L8.5 13H20.5L16.5 20H4.5Z" fill="#34A853"/>
+            <path d="M1 14L7 4H13L7 14H1Z" fill="#4285F4"/>
+            <path d="M13 4L20.5 13L14.5 20L7 4H13Z" fill="#FBBC05"/>
+          </svg>
+          Drive not configured — contact staff`);
+      }
+
+    } else {
+      throw new Error(data.error || 'Print failed');
+    }
+
+  } catch(err) {
+    console.error('[PRINT] Error:', err);
+    document.getElementById('queuePosSub').textContent = '⚠ ' + err.message;
+    setDriveBadge(`⚠ ${err.message}`);
+  }
+}
+
+function drawQRFromUrl(url) {
+  const canvas = document.getElementById('qrCanvas');
+  if (!canvas) return;
+
+  if (window.QRCode) {
+    // qrcode.js renders into a temp div as a canvas element
+    const tmp = document.createElement('div');
+    document.body.appendChild(tmp); // must be in DOM to render
+    const qr = new window.QRCode(tmp, {
+      text: url,
+      width: 168, height: 168,
+      colorDark: '#1c1c1a',
+      colorLight: '#ffffff',
+      correctLevel: window.QRCode.CorrectLevel.M,
+    });
+    // Copy rendered canvas to our canvas
+    setTimeout(() => {
+      const rendered = tmp.querySelector('canvas');
+      if (rendered) {
+        canvas.width = 168; canvas.height = 168;
+        canvas.getContext('2d').drawImage(rendered, 0, 0, 168, 168);
+      } else {
+        drawQR(); // fallback
+      }
+      document.body.removeChild(tmp);
+    }, 300);
+  } else {
+    drawQR();
+    // Show URL as tappable link
+    const note = document.querySelector('.qr-note');
+    if (note) note.innerHTML = `<a href="${url}" target="_blank" style="color:var(--orange);font-size:0.6rem;word-break:break-all;">${url}</a>`;
+  }
+}
+
+function drawQR() {
+  const c = document.getElementById('qrCanvas');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const S = 168, cell = Math.floor(S/21);
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,S,S);
+  const seed = Date.now() % 1000;
+  for(let x=0;x<21;x++) for(let y=0;y<21;y++){
+    if(((x*17+y*13+seed)%7===0)||((x+y)%11===0)){
+      ctx.fillStyle='#141413';
+      ctx.fillRect(x*cell,y*cell,cell,cell);
+    }
+  }
+  [[0,0],[14,0],[0,14]].forEach(([cx,cy])=>{
+    ctx.fillStyle='#141413'; ctx.fillRect(cx*cell,cy*cell,7*cell,7*cell);
+    ctx.fillStyle='#ffffff'; ctx.fillRect((cx+1)*cell,(cy+1)*cell,5*cell,5*cell);
+    ctx.fillStyle='#141413'; ctx.fillRect((cx+2)*cell,(cy+2)*cell,3*cell,3*cell);
+  });
+}
+
+function downloadPhoto() {
+  const comp = document.getElementById('compositeCanvas');
+  if (!comp) return;
+  const a = document.createElement('a');
+  a.href = comp.toDataURL('image/png');
+  a.download = `kepalakotak-${Date.now()}.png`;
+  a.click();
+}
+
+// ───────────────────────────────────────────
+// RESET
+// ───────────────────────────────────────────
+// ───────────────────────────────────────────
+// QUEUE POSITION
+// ───────────────────────────────────────────
+function updateQueuePosition(myNumber, queueData) {
+  const sub = document.getElementById('queuePosSub');
+  if (!sub) return;
+
+  const processData = (queue) => {
+    const myItem  = queue.find(q => q.number === myNumber);
+    if (!myItem || myItem.status === 'done') {
+      sub.textContent = '';
+      sub.style.color = 'var(--green, #8fa870)';
+      return;
+    }
+    const ahead = queue.filter(q => q.status === 'waiting' && q.number < myNumber).length;
+    if (myItem.status === 'printing') {
+      sub.textContent = 'Printing now — almost ready!';
+      sub.style.color = 'var(--blue, #7aaee0)';
+    } else if (ahead === 0) {
+      sub.textContent = "You're next!";
+    } else {
+      sub.textContent = `${ahead} print${ahead > 1 ? 's' : ''} ahead of you`;
+    }
+  };
+
+  if (queueData) {
+    processData(queueData);
+  } else {
+    fetch('/queue').then(r => r.json()).then(d => processData(d.queue || [])).catch(() => {});
+  }
+}
+
+// ───────────────────────────────────────────
+// CUSTOM DESIGN (film strip template)
+// ───────────────────────────────────────────
+let CUSTOM_DESIGN_IMG    = null;
+let CUSTOM_DESIGN_LOADED = false;
+let CUSTOM_DESIGN_CANVAS = null;
+let CUSTOM_DESIGN_HOLES  = [];
+
+// Per-format design store { strip: [{id,name,canvas,holes}], polaroid: [...] }
+const DESIGNS = { strip: [], polaroid: [] };
+
+function registerDesign(format, id, name, canvas, holes) {
+  // 'film' is merged into 'strip' — both formats are portrait 4x6 3-shot
+  const fmt = format === 'film' ? 'strip' : format;
+  if (!DESIGNS[fmt]) DESIGNS[fmt] = [];
+  const idx = DESIGNS[fmt].findIndex(d => d.id === id);
+  const entry = { id, name, canvas, holes };
+  if (idx >= 0) DESIGNS[fmt][idx] = entry;
+  else DESIGNS[fmt].push(entry);
+}
+
+function getActiveDesign() {
+  if (!APP.useCustomDesign || !APP.selectedDesignId) return null;
+  return (DESIGNS[APP.format] || []).find(d => d.id === APP.selectedDesignId) || null;
+}
+
+function buildDesignToggle() {
+  const fmt     = APP.format;
+  const section = document.getElementById('designToggleSection');
+  const row     = document.getElementById('designToggleRow');
+  const stdSect = document.getElementById('standardCustomSection');
+  if (!section || !row || !stdSect) return;
+
+  if (!fmt) {
+    section.style.display = 'none';
+    return;
+  }
+
+  const designs = DESIGNS[fmt] || [];
+  if (!designs.length) {
+    section.style.display = 'none';
+    stdSect.style.display = '';
+    APP.useCustomDesign = false;
+    return;
+  }
+
+  section.style.display = '';
+  row.innerHTML = '';
+
+  // Standard option
+  const stdBtn = document.createElement('div');
+  stdBtn.className = 'design-toggle-btn' + (!APP.useCustomDesign ? ' selected' : '');
+  stdBtn.innerHTML = `
+    <div style="width:28px;height:40px;background:var(--surface3);border-radius:3px;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">🎨</div>
+    <div class="design-toggle-info"><div class="design-toggle-name">Standard</div><div class="design-toggle-label">Custom colours</div></div>`;
+  stdBtn.onclick = () => { APP.useCustomDesign=false; APP.selectedDesignId=null; buildDesignToggle(); renderLive(); };
+  row.appendChild(stdBtn);
+
+  designs.forEach(d => {
+    const btn = document.createElement('div');
+    btn.className = 'design-toggle-btn' + (APP.useCustomDesign && APP.selectedDesignId===d.id ? ' selected' : '');
+    const thumb = d.canvas ? `<img class="design-toggle-thumb" src="${d.canvas.toDataURL()}">` :
+      `<div style="width:28px;height:40px;background:var(--surface3);border-radius:3px;flex-shrink:0;"></div>`;
+    btn.innerHTML = `${thumb}<div class="design-toggle-info"><div class="design-toggle-name">${d.name||d.id}</div><div class="design-toggle-label">Custom design</div></div>`;
+    btn.onclick = () => { APP.useCustomDesign=true; APP.selectedDesignId=d.id; buildDesignToggle(); renderLive(); };
+    row.appendChild(btn);
+  });
+
+  stdSect.style.display = APP.useCustomDesign ? 'none' : '';
+}
+
+async function loadCustomDesign() {
+  // Server injects design as base64 at page load time — no fetch needed
+  const src = window.INJECTED_DESIGN || null;
+
+  function processDesignUrl(dataUrl, fmt, did, dname) {
+    const img = new Image();
+    img.onload = () => {
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      const offscreen = document.createElement('canvas');
+      offscreen.width = iw; offscreen.height = ih;
+      const octx = offscreen.getContext('2d');
+      octx.drawImage(img, 0, 0);
+      const id = octx.getImageData(0, 0, iw, ih);
+      const px = id.data;
+      const THRESH = 128, MIN_SIZE = 0.05;
+
+      let hasTransparency = false;
+      for (let i = 3; i < px.length; i += 4) {
+        if (px[i] < THRESH) { hasTransparency = true; break; }
+      }
+      console.log(`[DESIGN] "${dname}" (${fmt}) — ${hasTransparency ? 'transparent' : 'black'} holes, ${iw}x${ih}`);
+
+      const sampleXs = [Math.floor(iw*0.25), Math.floor(iw*0.5), Math.floor(iw*0.75)];
+      const rowIsHole = new Array(ih).fill(false);
+      for (let y = 0; y < ih; y++) {
+        let count = 0;
+        for (const sx of sampleXs) {
+          const i = (y*iw+sx)*4;
+          const hole = hasTransparency ? px[i+3] < THRESH : (px[i]<20 && px[i+1]<20 && px[i+2]<20);
+          if (hole) count++;
+        }
+        rowIsHole[y] = count >= 2;
+      }
+
+      const bands = []; let inBand=false, bs=0;
+      for (let y=0;y<ih;y++) {
+        if (rowIsHole[y]&&!inBand){inBand=true;bs=y;}
+        else if (!rowIsHole[y]&&inBand){inBand=false;bands.push([bs,y-1]);}
+      }
+      if (inBand) bands.push([bs,ih-1]);
+
+      const BLEED = 0.008; // 0.8% bleed — photo extends slightly beyond hole so overlay covers edge cleanly
+      const holes = bands.filter(([y1,y2])=>(y2-y1)/ih>=MIN_SIZE).map(([y1,y2])=>{
+        const midY=Math.floor((y1+y2)/2);
+        let lx=iw,rx=0;
+        for(let x=0;x<iw;x++){
+          const i=(midY*iw+x)*4;
+          const hole=hasTransparency?px[i+3]<THRESH:(px[i]<20&&px[i+1]<20&&px[i+2]<20);
+          if(hole){lx=Math.min(lx,x);rx=Math.max(rx,x);}
+        }
+        const y1b = Math.max(0, y1/ih - BLEED);
+        const y2b = Math.min(1, y2/ih + BLEED);
+        const xb  = Math.max(0, lx/iw - BLEED);
+        const wb  = Math.min(1 - xb, (rx-lx)/iw + BLEED*2);
+        return {x:xb, y:y1b, w:wb, h:y2b - y1b};
+      });
+
+      console.log(`[DESIGN] "${dname}" — ${holes.length} holes:`,
+        holes.map(h=>`y=${(h.y*100).toFixed(0)}% h=${(h.h*100).toFixed(0)}%`).join(', '));
+
+      // Make hole pixels transparent
+      for (let i = 0; i < px.length; i += 4) {
+        const isHole = hasTransparency
+          ? px[i+3] < THRESH
+          : (px[i] < 20 && px[i+1] < 20 && px[i+2] < 20);
+        if (isHole) px[i+3] = 0;
+      }
+      octx.putImageData(id, 0, 0);
+
+      // Update legacy globals (for first/most-recent design backward compat)
+      CUSTOM_DESIGN_IMG    = img;
+      CUSTOM_DESIGN_CANVAS = offscreen;
+      CUSTOM_DESIGN_HOLES  = holes;
+      CUSTOM_DESIGN_LOADED = true;
+
+      // Register into per-format store — fmt/did/dname captured in closure correctly
+      registerDesign(fmt, did, dname, offscreen, holes);
+
+      buildDesignToggle();
+      if (APP.step === 3) renderLive();
+      updateFilmCardThumbnail();
+    };
+    img.onerror = () => { CUSTOM_DESIGN_LOADED = true; console.warn('[DESIGN] Load failed:', did); };
+    img.src = dataUrl;
+  }
+
+  if (src) {
+    console.log('[DESIGN] Using server-injected design(s)');
+    const allDesigns = window.INJECTED_ALL_DESIGNS || [];
+    const allData    = window.INJECTED_DESIGN_DATA  || {};
+
+    if (allDesigns.length > 0) {
+      allDesigns.forEach(d => {
+        const dataUrl = allData[d.id];
+        if (!dataUrl) return;
+        // Pass format/id/name directly — no globals override needed
+        processDesignUrl(dataUrl, d.format, d.id, d.name || d.id);
+      });
+    } else {
+      // Single legacy design
+      const fmt   = window.INJECTED_DESIGN_FORMAT || 'strip';
+      const did   = window.INJECTED_DESIGN_ID     || 'default';
+      const dname = window.INJECTED_DESIGN_NAME   || 'Default';
+      processDesignUrl(src, fmt, did, dname);
+    }
+  } else {
+    // Fallback fetch (for when design is uploaded after page load via WebSocket)
+    try {
+      const res = await fetch('/design?t=' + Date.now());
+      if (!res.ok) { CUSTOM_DESIGN_LOADED = true; return; }
+      const blob = await res.blob();
+      const fmt   = window.INJECTED_DESIGN_FORMAT || 'strip';
+      const did   = window.INJECTED_DESIGN_ID     || 'default';
+      const dname = window.INJECTED_DESIGN_NAME   || 'Default';
+      processDesignUrl(URL.createObjectURL(blob), fmt, did, dname);
+    } catch(e) {
+      CUSTOM_DESIGN_LOADED = true;
+      console.warn('[DESIGN] Fetch error:', e.message);
+    }
+  }
+}
+
+function updateFilmCardThumbnail() {
+  // No-op — film format removed, strip card uses standard visual
+}
+
+function resetAll() {
+  APP.format=null; APP.filter='none'; APP.borderColor='#ffffff';
+  APP.caption=''; APP.emojis=[]; APP.shots=[]; APP.outputMode='both';
+  APP.shootIdx=0; APP.capturing=false;
+  APP.sessionId = 'sess_' + Date.now();
+  APP.queueNumber = null;
+  APP.useCustomDesign = false;
+  APP.selectedDesignId = null;
+
+  // Reset UI
+  document.getElementById('doneScreen').classList.remove('active');
+  document.getElementById('shootScreen').classList.remove('active');
+  document.querySelectorAll('.format-card,.filter-card,.output-card').forEach(e=>e.classList.remove('selected'));
+  document.getElementById('fcard-none')?.classList.add('selected');
+  document.getElementById('captionInput').value='';
+  document.querySelectorAll('.emoji-btn').forEach(b=>b.classList.remove('selected'));
+  document.querySelectorAll('.swatch').forEach((s,i)=>{
+    s.classList.remove('selected');
+    if(i===0) s.classList.add('selected');
+  });
+  document.getElementById('camVideo').style.filter = '';
+  // Reset queue display
+  const qNum = document.getElementById('queueNumDisplay');
+  const qSub = document.getElementById('queuePosSub');
+  if (qNum) qNum.textContent = '—';
+  if (qSub) { qSub.textContent = 'Checking position…'; qSub.style.color = ''; }
+  // Rebuild design toggle on reset
+  buildDesignToggle();
+  APP.step = 0;
+  goToStep(1);
+}
+</script>
+</body>
+</html>
