@@ -4,7 +4,7 @@ A full-stack photobooth system built for events. Customers choose a format, pick
 
 ## Live Demo
 
-[https://photobooth-xxxx.onrender.com]((https://photobooth-0j80.onrender.com)
+[https://photobooth-0j80.onrender.com]
 
 ---
 
